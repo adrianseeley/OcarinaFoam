@@ -1,0 +1,35 @@
+// Kinematic turbulent viscosity initial/boundary field, initially zero.
+// WALE supplies modelled eddy viscosity during the solve. All patches use zeroGradient;
+// there are no dedicated wall functions configured here. Reassess near-wall resolution
+// before using this baseline to quantify viscous losses or transition.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      nut;
+}
+
+dimensions      [0 2 -1 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    airSource
+    {
+        type                zeroGradient;
+    }
+
+    atmosphere
+    {
+        type                zeroGradient;
+    }
+
+    solidWalls
+    {
+        type                zeroGradient;
+    }
+}
+

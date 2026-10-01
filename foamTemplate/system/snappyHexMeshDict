@@ -1,0 +1,114 @@
+// Refine and snap the background air mesh to the solid body; no prism layers are added.
+// Keep the connected fluid containing locationInMesh, which the builder places near
+// an outer corner. A sealed cavity disconnected from that point will not be retained.
+// The STL has a local scale conversion here. The separately extracted eMesh has no
+// matching scale entry in the frozen feature-extraction template: inspect alignment.
+// Quality thresholds guide snapping but checkMesh remains necessary on the result.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      snappyHexMeshDict;
+}
+
+castellatedMesh true;
+snap            true;
+addLayers       false;
+
+geometry
+{
+    solidBody.stl
+    {
+        type    triSurfaceMesh;
+        name    solidWalls;
+        scale   {{STL_SCALE}};
+    }
+}
+
+castellatedMeshControls
+{
+    // Effectively unlimited: 2147483647 is the largest portable label value.
+    // These integer ceilings impose no practical memory budget; refinement can exhaust RAM.
+    maxLocalCells       2147483647;
+    maxGlobalCells      2147483647;
+    minRefinementCells  0;
+    nCellsBetweenLevels {{N_CELLS_BETWEEN_LEVELS}};
+
+    features
+    (
+        {
+            file    "solidBody.eMesh";
+            level   {{FEATURE_REFINEMENT_LEVEL}};
+        }
+    );
+
+    refinementSurfaces
+    {
+        solidWalls
+        {
+            level ({{SURFACE_REFINEMENT_MIN_LEVEL}} {{SURFACE_REFINEMENT_MAX_LEVEL}});
+            patchInfo
+            {
+                type wall;
+            }
+        }
+    }
+
+    refinementRegions
+    {
+{{DISTANCE_REFINEMENT_REGIONS}}
+    }
+
+    // Surface curvature criterion, independent of the extracted-edge included angle.
+    resolveFeatureAngle 30;
+    locationInMesh      ({{LOCATION_IN_MESH}});
+    allowFreeStandingZoneFaces true;
+}
+
+snapControls
+{
+    // Zero preliminary patch smoothing; later snap solve/relaxation still runs.
+    nSmoothPatch   0;
+    tolerance      2.0;
+    nSolveIter     30;
+    nRelaxIter     5;
+    nFeatureSnapIter 10;
+    implicitFeatureSnap false;
+    explicitFeatureSnap true;
+    multiRegionFeatureSnap false;
+}
+
+addLayersControls
+{
+    relativeSizes true;
+    layers
+    {
+    }
+}
+
+// Limits below constrain cell shape/volume during snapping. Negative minArea and
+// minTriangleTwist disable those particular lower-bound checks; values are not
+// recommended universal tolerances for every geometry.
+meshQualityControls
+{
+    maxNonOrtho         65;
+    maxBoundarySkewness  20;
+    maxInternalSkewness  4;
+    maxConcave           80;
+    minVol               1e-13;
+    minTetQuality        1e-30;
+    minArea              -1;
+    minTwist             0.02;
+    minDeterminant       0.001;
+    minFaceWeight        0.02;
+    minVolRatio          0.01;
+    minTriangleTwist     -1;
+    nSmoothScale         4;
+    errorReduction       0.75;
+}
+
+debug 0;
+mergeTolerance 1e-6;
+

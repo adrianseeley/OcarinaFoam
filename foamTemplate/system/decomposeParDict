@@ -1,0 +1,16 @@
+// scotch partitions the mesh graph among the configured number of MPI ranks.
+// Keep this number aligned with mpirun -np and the renderer's ProcessorCount.
+// The renderer requires ordinary uncollated processor0, processor1, ... directories.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      decomposeParDict;
+}
+
+numberOfSubdomains {{PROCESSOR_COUNT}};
+
+method scotch;
+

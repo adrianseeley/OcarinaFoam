@@ -1,0 +1,44 @@
+// Idealised single-component air: perfect gas, constant Cv and transport properties.
+// The solved energy variable is sensible internal energy e. This is a compressible
+// fluid model, not conjugate heat transfer or a model of the wood/clay structure.
+// Viscosity and Prandtl number stay fixed rather than varying with temperature.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      thermophysicalProperties;
+}
+
+thermoType
+{
+    type            hePsiThermo;
+    mixture         pureMixture;
+    transport       const;
+    thermo          eConst;
+    equationOfState perfectGas;
+    specie          specie;
+    energy          sensibleInternalEnergy;
+}
+
+mixture
+{
+    specie
+    {
+        molWeight   {{AIR_MOL_WEIGHT}};
+    }
+
+    thermodynamics
+    {
+        Cv          {{AIR_CV}};
+        Hf          0;
+    }
+
+    transport
+    {
+        mu          1.8e-05;
+        Pr          0.7;
+    }
+}
+

@@ -1,0 +1,56 @@
+// Discretisation: translate differential equations into operations on mesh cells.
+// CrankNicolson 0.9 biases toward time-centred integration with off-centring for damping.
+// LUST adds an upwind contribution to linear interpolation for U and internal energy.
+// These choices trade numerical dissipation against oscillation control; they do not
+// establish acoustic accuracy. corrected terms account for mesh non-orthogonality.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSchemes;
+}
+
+ddtSchemes
+{
+    default         CrankNicolson 0.9;
+}
+
+gradSchemes
+{
+    default         Gauss linear;
+}
+
+divSchemes
+{
+    // Require an explicit convection scheme for each requested divergence term.
+    default         none;
+
+    div(phi,U)      Gauss LUST grad(U);
+    div(phi,e)      Gauss LUST grad(e);
+    div(phi,K)      Gauss linear;
+    div(phiv,p)     Gauss linear;
+    div(((rho*nuEff)*dev2(T(grad(U))))) Gauss linear;
+}
+
+laplacianSchemes
+{
+    default         Gauss linear corrected;
+}
+
+interpolationSchemes
+{
+    default         linear;
+}
+
+snGradSchemes
+{
+    default         corrected;
+}
+
+wallDist
+{
+    method          meshWave;
+}
+

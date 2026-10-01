@@ -1,0 +1,64 @@
+// Linear solve tolerances and PIMPLE pressure/velocity coupling.
+// Final solves remove the relative tolerance shortcut. Three outer iterations add
+// coupling work per timestep; zero non-orthogonal correctors keeps that loop minimal.
+// Pressure limit factors and convergence tolerances are numerical controls, not
+// bounds on physically valid acoustic amplitudes or proof of a converged result.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvSolution;
+}
+
+solvers
+{
+    "(p|rho)"
+    {
+        solver          PCG;
+        preconditioner  DIC;
+        tolerance       1e-8;
+        relTol          0.01;
+    }
+
+    "(p|rho)Final"
+    {
+        $p;
+        relTol          0;
+    }
+
+    "(U|e)"
+    {
+        solver          smoothSolver;
+        smoother        symGaussSeidel;
+        tolerance       1e-8;
+        relTol          0.01;
+    }
+
+    "(U|e)Final"
+    {
+        $U;
+        relTol          0;
+    }
+}
+
+PIMPLE
+{
+    momentumPredictor          yes;
+    nOuterCorrectors           3;
+    nCorrectors                1;
+    nNonOrthogonalCorrectors   0;
+
+    pMinFactor                 0.5;
+    pMaxFactor                 2.0;
+}
+
+relaxationFactors
+{
+    equations
+    {
+        ".*" 1;
+    }
+}
+

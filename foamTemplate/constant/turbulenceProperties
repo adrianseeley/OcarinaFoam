@@ -1,0 +1,22 @@
+// WALE large-eddy simulation models unresolved momentum transport from local gradients.
+// The cubeRootVol filter width follows cell volume. Choosing LES does not by itself
+// resolve turbulence: spatial/time resolution and near-wall treatment still need study.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      turbulenceProperties;
+}
+
+simulationType  LES;
+
+LES
+{
+    LESModel        WALE;
+    turbulence      on;
+    printCoeffs     yes;
+    delta           cubeRootVol;
+}
+

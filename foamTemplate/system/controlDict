@@ -1,0 +1,67 @@
+// Transient compressible solve with fixed timestep and two independent sampling rates.
+// Full fields feed the renderer; probes preserve compact p/U/T time histories.
+// purgeWrite 0 delegates old-field removal to the renderer. latestTime permits restart,
+// but the newest surviving directory must be complete on every processor.
+// runTimeModifiable applies to OpenFOAM dictionaries, not the baked C# renderer settings.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      controlDict;
+}
+
+application         rhoPimpleFoam;
+
+startFrom           latestTime;
+startTime           0;
+stopAt              endTime;
+endTime             {{END_TIME}};
+
+deltaT              {{DELTA_T}};
+adjustTimeStep      no;
+
+writeControl        timeStep;
+writeInterval       {{FIELD_WRITE_INTERVAL}};
+purgeWrite          0;
+
+writeFormat         {{FIELD_WRITE_FORMAT}};
+writePrecision      10;
+writeCompression    {{FIELD_WRITE_COMPRESSION}};
+
+timeFormat          general;
+timePrecision       10;
+
+runTimeModifiable   true;
+
+functions
+{
+    // Make the fixed UMean field available to the damping source without averaging.
+    loadReferenceFields
+    {
+        type            readFields;
+        libs            (fieldFunctionObjects);
+        fields          (UMean);
+        readOnStart     true;
+
+        executeControl  none;
+        writeControl    none;
+    }
+
+    // Six points are specified in buildCase.js in metres; moving CAD does not move them.
+    acousticProbes
+    {
+        type            probes;
+        libs            (sampling);
+        writeControl    timeStep;
+        writeInterval   {{PROBE_WRITE_INTERVAL}};
+        fields          (p U T);
+
+        probeLocations
+        (
+{{PROBE_LOCATIONS}}
+        );
+    }
+}
+

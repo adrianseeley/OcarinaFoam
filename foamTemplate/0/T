@@ -1,0 +1,37 @@
+// Temperature in kelvin. Inlet temperature is fixed; atmosphere uses the specified
+// ambient value for inflow and zero gradient for outflow. Solid-wall zero gradient
+// represents the thermal boundary approximation; no solid temperature is solved.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      T;
+}
+
+dimensions      [0 0 0 1 0 0 0];
+
+internalField   uniform {{INITIAL_TEMPERATURE}};
+
+boundaryField
+{
+    airSource
+    {
+        type                fixedValue;
+        value               uniform {{INITIAL_TEMPERATURE}};
+    }
+
+    atmosphere
+    {
+        type                inletOutlet;
+        inletValue          uniform {{INITIAL_TEMPERATURE}};
+        value               uniform {{INITIAL_TEMPERATURE}};
+    }
+
+    solidWalls
+    {
+        type                zeroGradient;
+    }
+}
+

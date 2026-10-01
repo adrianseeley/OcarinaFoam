@@ -1,0 +1,34 @@
+// Spherical velocity relaxation intended to reduce outgoing-wave reflections.
+// UMean is a fixed zero reference, not a measured running mean. Inside radius1 the
+// ramp is inactive; between radius1 and radius2 the strength rises smoothly.
+// The coefficient uses w * frequency * radial blend; w is not a mesh refinement count.
+// The configured shell may extend outside the world: this source cannot add mesh cells.
+// The generator writes identical copies to constant/fvOptions and system/fvOptions.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      fvOptions;
+}
+
+acousticDampingSource
+{
+    type            acousticDampingSource;
+    active          {{ACOUSTIC_DAMPING_ENABLED}};
+
+    acousticDampingSourceCoeffs
+    {
+        timeStart       0;
+        duration        1000000;
+        selectionMode   all;
+        origin          ({{DAMPING_ORIGIN}});
+        radius1         {{DAMPING_INNER_RADIUS}};
+        radius2         {{DAMPING_OUTER_RADIUS}};
+        frequency       {{DAMPING_TARGET_FREQUENCY}};
+        URef            UMean;
+        w               {{DAMPING_STENCIL_WIDTH}};
+    }
+}
+

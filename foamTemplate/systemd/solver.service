@@ -1,0 +1,21 @@
+# Run MPI under the configured non-root account, with the versioned OpenFOAM environment.
+# The username is taken from the build host; the case directory is taken from JSON.
+# No meshing, copying or decomposition is performed by this service. on-failure uses
+# latestTime on restart; inspect checkpoint completeness before resuming after a crash.
+
+[Unit]
+Description=OpenFOAM rhoPimpleFoam solver for {{CASE_NAME}}
+After=local-fs.target
+
+[Service]
+Type=simple
+User={{CASE_OWNER}}
+WorkingDirectory={{SYSTEMD_CASE_DIRECTORY}}
+ExecStart=/bin/bash -lc 'source {{OPENFOAM_BASHRC}} && exec mpirun -np {{PROCESSOR_COUNT}} rhoPimpleFoam -parallel'
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

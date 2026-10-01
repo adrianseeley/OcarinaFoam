@@ -1,0 +1,28 @@
+// Extract sharp, open and non-manifold edges for explicit feature refinement/snapping.
+// The included angle threshold is distinct from snappy's resolveFeatureAngle.
+// Frozen limitation: the input STL is copied in mm and this dictionary has no scale
+// entry, although snappy's surface uses a metre conversion. Verify eMesh bounds;
+// do not assume the surface geometry scale also transforms the feature file.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      surfaceFeatureExtractDict;
+}
+
+solidBody.stl
+{
+    extractionMethod extractFromSurface;
+    includedAngle       {{FEATURE_INCLUDED_ANGLE_DEGREES}};
+
+    subsetFeatures
+    {
+        nonManifoldEdges   yes;
+        openEdges          yes;
+    }
+
+    writeObj            no;
+}
+

@@ -1,0 +1,37 @@
+// Zero reference velocity read by loadReferenceFields for acousticDampingSource.
+// Despite its name this field is not an accumulated mean and is not updated by an
+// averaging function. The sponge therefore relaxes toward stationary ambient air.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      UMean;
+}
+
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform (0 0 0);
+
+boundaryField
+{
+    airSource
+    {
+        type                fixedValue;
+        value               uniform (0 0 0);
+    }
+
+    atmosphere
+    {
+        type                fixedValue;
+        value               uniform (0 0 0);
+    }
+
+    solidWalls
+    {
+        type                fixedValue;
+        value               uniform (0 0 0);
+    }
+}
+

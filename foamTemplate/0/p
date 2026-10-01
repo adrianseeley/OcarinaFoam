@@ -1,0 +1,40 @@
+// Absolute thermodynamic pressure in pascals, not gauge pressure or p/rho.
+// The inlet and solid use zero normal gradient; the exterior uses waveTransmissive
+// with an ambient reference and relaxation length. This is an approximate open boundary,
+// not a guarantee of reflection-free propagation at every angle/frequency.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volScalarField;
+    object      p;
+}
+
+dimensions      [1 -1 -2 0 0 0 0];
+
+internalField   uniform {{INITIAL_PRESSURE}};
+
+boundaryField
+{
+    airSource
+    {
+        type                zeroGradient;
+    }
+
+    atmosphere
+    {
+        type                waveTransmissive;
+        psi                 thermo:psi;
+        gamma               {{AIR_GAMMA}};
+        fieldInf            {{INITIAL_PRESSURE}};
+        lInf                {{FAR_FIELD_RELAXATION_LENGTH}};
+        value               uniform {{INITIAL_PRESSURE}};
+    }
+
+    solidWalls
+    {
+        type                zeroGradient;
+    }
+}
+

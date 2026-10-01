@@ -1,0 +1,54 @@
+// Background air domain. The generator supplies metre-valued vertices, source-aligned
+// hex blocks and exterior patch faces; scale 1 avoids a second unit conversion.
+// airSource is the minimum-Y inlet rectangle; all other outer faces are atmosphere.
+// solidWalls is created later by snappyHexMesh, not by this background mesh.
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+
+scale 1;
+
+vertices
+(
+{{VERTICES}}
+);
+
+blocks
+(
+{{BLOCKS}}
+);
+
+edges
+(
+);
+
+boundary
+(
+    airSource
+    {
+        type patch;
+        faces
+        (
+{{SOURCE_FACES}}
+        );
+    }
+
+    atmosphere
+    {
+        type patch;
+        faces
+        (
+{{ATMOSPHERE_FACES}}
+        );
+    }
+);
+
+mergePatchPairs
+(
+);
+
