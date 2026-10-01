@@ -711,15 +711,6 @@ For people and coding agents extending the project:
 - Treat changes to numerical settings, rendering transfer functions and data-retention rules as separate, recorded changes.
 - Do not present proposed alternatives as measured improvements until they have been compared.
 
-## Samples
-
-**Placeholder — examples will be added here.**
-
-- YouTube walkthrough and annotated wavefront videos.
-- Full-resolution pressure, speed, density and temperature composites.
-- Geometry/configuration and simulated timestamp for each example.
-- Brief notes distinguishing an exploratory visualization from a validated measurement.
-
 ## CC0 and third-party material
 
 To the extent possible under law, Adrian Seeley dedicates the original Foams code, documentation and original model material to the public domain under **[CC0 1.0 Universal][cc0]**. Copy, modify, redistribute and use that original material, including commercially, without asking permission. No scientific accuracy, fitness for purpose or warranty is claimed. Attribution is welcome but is not a condition of that dedication.
