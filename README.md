@@ -81,6 +81,8 @@ ocarina check "$HOME/myCase"
 | `ocarina render DIR` | The same lifecycle for the runtime-configured renderer. |
 | `ocarina render preview DIR` | Foreground layout preview at `DIR/previews/layout.png` using the built solid wireframe; consumes no field history and does not write `renders/config.json`. |
 | `ocarina render stop DIR` | Stop renderer workers and remove its unit. Keep logs/results. |
+| `ocarina start DIR` | Operator shortcut: start the solver and renderer services detached (no log following). Already-running services are left alone. |
+| `ocarina stop DIR` | Stop the renderer, then the solver, removing both units. Keeps logs/results. |
 | `ocarina check DIR` | Show both service states, complete rendered frame count, eligible backlog, held writes and latest time per rank. |
 
 Services continue after Ctrl+C and SSH logout. They do **not** restart on failure or

@@ -34,7 +34,7 @@ public static class Services
             "StandardOutput=append:"+Path.Combine(Paths.Logs(root),kind+".log").Replace("%","%%")+"\nStandardError=inherit\n"+
             "Environment=FOAM_FILEHANDLER=uncollated\n";
     }
-    public static void Start(string root,string kind)
+    public static void Start(string root,string kind,bool follow=true)
     {
         using(Paths.Lock(root,"build"))
         {
@@ -53,8 +53,25 @@ public static class Services
             }
         }
         Console.WriteLine(State(root,kind));
+        if(!follow)return;
         Console.WriteLine("Following "+kind+". Press Ctrl+C to detach; the service keeps running.");
         Follow(root,kind);
+    }
+    // Operator handle: start both jobs detached; renderer waits for solver output.
+    public static void StartAll(string root)
+    {
+        foreach(string kind in new[]{"simulate","render"})Start(root,kind,false);
+        Console.WriteLine("Started. Use: ocarina check "+root+"; logs are in "+Paths.Logs(root));
+    }
+    // Stop the renderer first, then the solver. Always attempt both before reporting failure.
+    public static void StopAll(string root)
+    {
+        var errors=new List<string>();
+        foreach(string kind in new[]{"render","simulate"})
+        {
+            try{Stop(root,kind);}catch(Exception e){errors.Add(kind+": "+e.Message);}
+        }
+        if(errors.Count>0)throw new Exception(string.Join("\n",errors));
     }
     public static void Stop(string root,string kind)
     {
@@ -68,7 +85,7 @@ public static class Services
             Require("stop",unit); // waits for the entire control group, including MPI workers
             string state=Active(root,kind);
             if(state is "active" or "activating" or "deactivating")throw new Exception("Service did not stop; unit retained.");
-            Require("reset-failed",unit);
+            Control("reset-failed",unit); // a stopped unit may already be unloaded
         }
         string file=Path.Combine(UnitDirectory(),unit);
         if(File.Exists(file))File.Delete(file);
