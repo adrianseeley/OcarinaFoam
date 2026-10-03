@@ -13,9 +13,10 @@ and the commented dictionaries themselves.
 
 ## Prepare an Ubuntu server
 
-Use **Ubuntu 24.04 LTS, amd64**, an ordinary SSH account with sudo, and sufficient
-RAM/disk for your chosen mesh and output rate. Solver ranks and renderer workers
-share those resources; the sample's six of each are not a hardware recommendation.
+Use **Ubuntu 24.04 or 26.04 LTS, amd64**, an ordinary SSH account with sudo, and
+sufficient RAM/disk for your chosen mesh and output rate. Solver ranks and
+renderer workers share those resources; the sample's six of each are not a
+hardware recommendation.
 
 ```bash
 git clone https://github.com/adrianseeley/OcarinaFoam.git

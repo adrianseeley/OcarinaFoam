@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Prepare an Ubuntu 24.04 amd64 server for this repository's fixed OpenCFD v2606
-# baseline. Run from an ordinary SSH account: sudo bash prepare-machine.sh
+# Prepare an Ubuntu 24.04 or 26.04 amd64 server for this repository's fixed
+# OpenCFD v2606 baseline. Run from an ordinary SSH account:
+# sudo bash prepare-machine.sh
 # This script changes system package sources, installs dependencies, and enables
 # lingering for that account so its user services survive SSH logout.
 set -euo pipefail
@@ -11,8 +12,8 @@ if [[ $EUID -ne 0 || -z ${SUDO_USER:-} || $SUDO_USER == root ]]; then
     exit 1
 fi
 source /etc/os-release
-if [[ $ID != ubuntu || $VERSION_ID != 24.04 || $(dpkg --print-architecture) != amd64 ]]; then
-    echo 'This baseline targets Ubuntu 24.04 LTS amd64.' >&2
+if [[ $ID != ubuntu || ( $VERSION_ID != 24.04 && $VERSION_ID != 26.04 ) || $(dpkg --print-architecture) != amd64 ]]; then
+    echo 'This baseline targets Ubuntu 24.04 or 26.04 LTS amd64.' >&2
     exit 1
 fi
 
