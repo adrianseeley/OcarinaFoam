@@ -134,6 +134,63 @@ public static class SelfTest
             Check(clipped == 2, "quantiser counts clipped samples");
         }
 
+        // Musical notes and exact-frequency note samples.
+        {
+            Note[] all = MusicalNotes.Generate(440, 0, 9);
+            Note Find(string n) => all.Single(x => x.Name == n);
+            Check(all.Length == 120 && all.Select(x => x.Index).Distinct().Count() == 120, "note grid has 12 unique notes per octave");
+            Check(Math.Abs(Find("A4").Hz - 440) < 1e-9 && Math.Abs(Find("A5").Hz - 880) < 1e-9, "A4 and A5 map to 440 and 880 Hz");
+            Check(Math.Abs(Find("C4").Hz - 261.625565) < 1e-5 && Math.Abs(Find("F" + MusicalNotes.Sharp + "6").Hz - 1479.977691) < 1e-5, "C4 and F-sharp 6 frequencies");
+            Check(MusicalNotes.Spelled('B', 1, 3) == Find("C4").Index && MusicalNotes.Spelled('C', -1, 4) == Find("B3").Index
+                && MusicalNotes.Spelled('B', 2, 3) == Find("C" + MusicalNotes.Sharp + "4").Index && MusicalNotes.Spelled('C', -2, 4) == Find("A" + MusicalNotes.Sharp + "3").Index, "aliases cross octave boundaries correctly");
+            Check(Enumerable.Range(0, 12).Count(pc => MusicalNotes.Aliases(pc).Length == 0) == 1 && MusicalNotes.Aliases(8).Length == 0, "only G-sharp/A-flat has no double-accidental aliases");
+
+            const double fs = 48000;
+            double[] tone = Enumerable.Range(0, 48000).Select(i => 0.5 * Math.Sin(2 * Math.PI * 440 * i / fs) + 0.125 * Math.Sin(2 * Math.PI * 880 * i / fs)).ToArray();
+            double[] got = NoteAnalysis.Evaluate(tone, fs, new[] { 440.0, 880.0 });
+            Check(Math.Abs(got[0] - -6.0206) < 0.05 && Math.Abs(got[1] - -18.0618) < 0.05 && Math.Abs((got[0] - got[1]) - 12.04) < 0.05, "known tones read -6.02 and -18.06 dBFS");
+
+            double[] small = Enumerable.Range(0, 3000).Select(i => Math.Sin(i * 0.37) + 0.3 * Math.Cos(i * 0.011)).ToArray();
+            double[] fr = { 100, 437.3, 1234.5, 5000, 12345.6 };
+            double[] fast = NoteAnalysis.Evaluate(small, fs, fr), slow = NoteAnalysis.EvaluateDirect(small, fs, fr);
+            Check(fast.Zip(slow).All(z => Math.Abs(Math.Pow(10, z.First / 20) - Math.Pow(10, z.Second / 20)) < 1e-12), "oscillator recurrence matches direct trigonometric sum");
+
+            double[] fftIn = Enumerable.Range(0, 2048).Select(i => Math.Sin(2 * Math.PI * 3000 * i / fs) * 0.7).ToArray();
+            double[] spec = AudioDsp.Spectrum(fftIn, fs, out double bin);
+            double[] direct = NoteAnalysis.Evaluate(fftIn, fs, new[] { 128 * bin, 64 * bin });
+            Check(Math.Abs(direct[0] - spec[128]) < 1e-6 && Math.Abs(direct[1] - spec[64]) < 1e-6, "direct evaluation matches the FFT on interior bins (zero-padding-free length)");
+
+            var cfg = new AudioPlotConfig();
+            var deep = new AudioPlotConfig { displayFloorDbfs = -400 };
+            NoteSpectrum a1 = NoteAnalysis.Analyze(tone, fs, 1e7, deep), a2 = NoteAnalysis.Analyze(tone.Select(v => v * 0.25).ToArray(), fs, 1e7, deep);
+            Check(a1.Mode == NoteMode.Normal && Enumerable.Range(0, all.Length).All(i => a1.Status[i] != NoteStatus.Valid || Math.Abs(NoteAnalysis.Position(a1, i) - NoteAnalysis.Position(a2, i)) < 1e-9),
+                "note colours ignore overall gain while dB shifts");
+            Check(Math.Abs(a1.Strongest - a2.Strongest - 12.0412) < 0.01, "spectrum dB shifts with gain");
+            Check(a1.Status.Count(x => x == NoteStatus.Valid) == a1.ValidCount && a1.Notes.Where((n, i) => a1.Status[i] == NoteStatus.Valid).All(n => n.Hz < 24000), "notes at or above Nyquist are excluded");
+            NoteSpectrum silent = NoteAnalysis.Analyze(new double[4800], fs, 1e7, cfg);
+            Check(silent.Mode == NoteMode.BelowFloor && Enumerable.Range(0, all.Length).All(i => silent.Status[i] != NoteStatus.Valid || NoteAnalysis.Position(silent, i) == 0), "silence maps to the floor without NaN");
+            NoteSpectrum flat = NoteAnalysis.Analyze(Enumerable.Range(0, 4800).Select(i => 0.5).ToArray(), fs, 1e7, new AudioPlotConfig { minimumOctave = 4, maximumOctave = 4, maximumFrequencyHz = 300 });
+            Check(NoteAnalysis.Analyze(new double[4], fs, 1e7, cfg).Mode == NoteMode.TooShort, "very short records are reported, not divided by zero");
+            Check(NoteAnalysis.Analyze(tone, fs, 8000, cfg).Notes.Where((n, i) => n.Hz >= 4000 && NoteAnalysis.Analyze(tone, fs, 8000, cfg).Status[i] == NoteStatus.Valid).Count() == 0, "native Nyquist limits the note band");
+            Check(NoteAnalysis.Analyze(tone.Select((v, i) => i == 5 ? double.NaN : v).ToArray(), fs, 1e7, cfg).InvalidCount > 0, "non-finite samples mark notes invalid");
+            Check(flat.Mode is NoteMode.Flat or NoteMode.Normal or NoteMode.BelowFloor, "narrow note range analyses");
+
+            string plotDir = Path.Combine(Path.GetTempPath(), "ocarina-plot-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(plotDir);
+            try
+            {
+                var au = new AudioConfig();
+                double[] db = AudioDsp.Spectrum(tone, fs, out double b2);
+                AudioPlotResult pr = AudioPlots.Make("test_probe", tone, fs, 1e7, db, b2, au, plotDir);
+                Check(new FileInfo(pr.SpectrumPath).Length > 1000 && new FileInfo(pr.PunchPath).Length > 1000, "spectrum.png and punch.png are written");
+                AudioPlots.Make("low_rate", tone, fs, 8000, db, b2, au, plotDir);
+                AudioPlots.Make("quiet", new double[4800], fs, 1e7, AudioDsp.Spectrum(new double[4800], fs, out double b3), b3, au, plotDir);
+            }
+            finally { Directory.Delete(plotDir, true); }
+            Check(Throws(() => AudioPlots.Validate(new AudioPlotConfig { spectrumWidth = 800 })), "unreadable plot layouts are rejected");
+            Check(Throws(() => AudioPlots.Validate(null)), "null plots config is rejected");
+        }
+
         Console.WriteLine(failures == 0 ? "All checks passed." : failures + " check(s) failed.");
         return failures == 0 ? 0 : 1;
     }

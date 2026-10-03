@@ -48,6 +48,7 @@ public static class LineFont
             "=:0,2 4,2|0,4 4,4", "/:0,6 4,0", "^:0,3 2,0 4,3", "::2,1 2,2|2,4 2,5",
             "(:3,0 1,2 1,4 3,6", "):1,0 3,2 3,4 1,6", "[:4,0 1,0 1,6 4,6", "]:0,0 3,0 3,6 0,6",
             "_:0,6 4,6", "%:0,6 4,0|0,0 1,0 1,1 0,1 0,0|3,5 4,5 4,6 3,6 3,5",
+            "\u266F:1,0 1,6|3,0 3,6|0,2 4,1|0,5 4,4", "\u266D:1,0 1,6|1,4 3,3 4,4 3,5.5 1,6",
             "?:0,1 1,0 3,0 4,1 4,2 2,3 2,4|2,5.7 2,6",
             "<:4,0 0,3 4,6", ">:0,0 4,3 0,6", "*:0,1 4,5|0,5 4,1|0,3 4,3", "!:2,0 2,4|2,5.7 2,6"
         };
@@ -56,6 +57,9 @@ public static class LineFont
             glyphs[definition[0]]=definition[2..].Split('|').Select(stroke=>stroke.Split(' ').SelectMany(point=>point.Split(',').Select(n=>float.Parse(n,System.Globalization.CultureInfo.InvariantCulture))).ToArray()).ToArray();
         return glyphs;
     }
+    // Width and glyph coverage helpers matching Draw's layout math.
+    public static float Width(string text,float size)=>Math.Max(0,text.Length*size*.8f-size*.12f);
+    public static string Missing(string text)=>new string(text.ToUpperInvariant().Where(c=>c!=' '&&!Glyphs.ContainsKey(c)).Distinct().ToArray());
     public static void Draw(SKCanvas canvas,string text,float x,float baseline,SKTextAlign align,float size,SKPaint source,float maximumWidth=float.PositiveInfinity)
     {
         if (text.Length > 0) size=Math.Min(size,maximumWidth/(text.Length*.8f));

@@ -46,6 +46,7 @@ public static class Configuration
         if (au.highPassHz >= au.sampleRateHz / 4.0) throw new Exception("highPassHz must be below a quarter of the audio rate.");
         if (!double.IsFinite(au.peakTargetDbfs) || au.peakTargetDbfs > 0) throw new Exception("peakTargetDbfs must be finite and at most 0.");
         Positive(au.kernelZeroCrossings, "kernelZeroCrossings"); Positive(au.kaiserBeta, "kaiserBeta");
+        AudioPlots.Validate(au.plots);
         RenderConfig rconf = c.renderer;
         Positive(rconf.renderThreads, "renderThreads"); Positive(rconf.pollMilliseconds, "pollMilliseconds");
         if (rconf.plotWidth < 128 || rconf.plotHeight < 128) throw new Exception("Render tiles must be at least 128 pixels.");

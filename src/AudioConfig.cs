@@ -9,4 +9,5 @@ public class AudioConfig
     public bool sharedGain = false;
     public int kernelZeroCrossings = 48;
     public double kaiserBeta = 10;
+    public AudioPlotConfig plots = new AudioPlotConfig();
 }

@@ -133,6 +133,16 @@ public static class Audio
             Log($"output peak {Db(AudioDsp.Dbfs(outPeak))} dBFS, rms {Db(AudioDsp.Dbfs(outRms))} dBFS, crest {Db(AudioDsp.Dbfs(outPeak / Math.Max(outRms, 1e-300)))} dB, clipped {clipped}");
             Log($"spectral peak {top * binHz:F2} Hz at {Db(db[top])} dBFS, centroid {(centroidDen > 0 ? centroidNum / centroidDen : 0):F1} Hz, bin {binHz:G4} Hz");
             Log($"csv: {name}/native.csv, {name}/audio.csv, {name}/spectrum.csv");
+            if (a.plots.enabled)
+            {
+                AudioPlotResult plots = AudioPlots.Make(name, s.Normalised, fsOut, fsIn, db, binHz, a, Path.Combine(output, name));
+                NoteSpectrum ns = plots.Notes;
+                Log($"plots: {name}/plots/spectrum.png, {name}/plots/punch.png");
+                Log($"notes: {ns.ValidCount} sampled of {ns.Notes.Length} (A4 {a.plots.concertAHz:G} Hz), mode {ns.Mode}, invalid {ns.InvalidCount}, T {ns.Duration:G6} s, fft bin {binHz:G4} Hz, 1/T {1 / ns.Duration:G4} Hz");
+                if (ns.ValidCount > 0 && ns.Mode != NoteMode.TooShort) Log($"note colour range {ns.Low:F2}..{ns.High:F2} dBFS (floor {ns.Floor:G} dBFS); strongest {ns.Notes[ns.StrongestIndex].Name} {Db(ns.Strongest)} dBFS");
+                if (plots.Warning != null) Log("WARNING " + plots.Warning);
+                if (ns.Mode is NoteMode.BelowFloor or NoteMode.NoNotes or NoteMode.TooShort) Log($"WARNING note plot condition: {ns.Mode}");
+            }
         }
         Log("\ndone");
     }

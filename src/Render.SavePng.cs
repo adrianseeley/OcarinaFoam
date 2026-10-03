@@ -10,12 +10,14 @@ public static partial class Renderer
     // Encode to a neighbouring temporary file, flush it, then replace the final PNG.
     // This avoids advertising an incomplete PNG as finished during normal operation.
     // Publication is per image, not a transaction across fields or raw-data deletion.
-    public static void SavePng(SKBitmap bitmap, string path)
+    public static void SavePng(SKBitmap bitmap, string path) => SavePng(bitmap, path, PngCompressionLevel);
+
+    public static void SavePng(SKBitmap bitmap, string path, int compressionLevel)
     {
         using (SKPixmap pixels = bitmap.PeekPixels())
         using (FileStream output = File.Create(path + ".tmp"))
         {
-            SKPngEncoderOptions options = new SKPngEncoderOptions(SKPngEncoderFilterFlags.None, PngCompressionLevel);
+            SKPngEncoderOptions options = new SKPngEncoderOptions(SKPngEncoderFilterFlags.None, compressionLevel);
             if (!pixels.Encode(output, options))
             {
                 throw new IOException("PNG encoding failed: " + path);
