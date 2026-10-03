@@ -33,7 +33,7 @@
   "initialTemperatureCelsius": 26.85,
   "deltaTSeconds":  0.0000001,
   "endTimeSeconds": 3.0000000,
-  "fieldWriteIntervalTimeSteps": 10,
+  "fieldWriteIntervalTimeSteps": 1000,
   "probeWriteIntervalTimeSteps": 1,
   "farFieldRelaxationLengthMeters": 0.1,
   "acousticDampingEnabled": true,

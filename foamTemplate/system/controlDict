@@ -59,7 +59,7 @@ writeFormat         ascii;
 writePrecision      10;
 writeCompression    on;
 
-timeFormat          general;
+timeFormat          fixed;
 timePrecision       10;
 
 runTimeModifiable   false;
