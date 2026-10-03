@@ -83,7 +83,8 @@ ocarina check "$HOME/myCase"
 | `ocarina render stop DIR` | Stop renderer workers and remove its unit. Keep logs/results. |
 | `ocarina start DIR` | Operator shortcut: start the solver and renderer as detached services, then stay in the foreground reporting every 30 s: frames simulated and remaining, simulation rate, estimated time left, frames fully rendered and remaining. Ctrl+C detaches; the services keep running. Exits by itself when both stop. Already-running services are left alone. |
 | `ocarina stop DIR` | Stop the renderer, then the solver, removing both units. Keeps logs/results. |
-| `ocarina clean DIR` | Stop both services, then delete everything generated: `foam/`, `renders/`, `previews/`, `logs/` and leftover build stages. Keeps your inputs (STLs, `config.json`, model files). |
+| `ocarina clean DIR` | Stop both services, then delete everything generated: `foam/`, `renders/`, `previews/`, `audio/`, `logs/` and leftover build stages. Keeps your inputs (STLs, `config.json`, model files). |
+| `ocarina audio DIR` | Turn every probe's pressure history into `DIR/audio/NAME.wav` (24-bit mono, 96 kHz) with CSVs of each stage (`NAME/native.csv`, `audio.csv`, `spectrum.csv`) and details in `audio/audio.log`. Always deletes and rebuilds `audio/`; safe to run while the solver runs (uses what is written so far). |
 | `ocarina check DIR` | Show both service states, complete rendered frame count, eligible backlog, held writes and latest time per rank. |
 
 Services continue after Ctrl+C and SSH logout. They do **not** restart on failure or
@@ -106,6 +107,8 @@ are rejected rather than silently disagreeing with the generated dictionaries.
   `temperature/` directories containing nine-digit PNG names such as
   `pressure/000000000.png`, plus completion records. One countable frame includes
   all enabled fields.
+- `audio/` — from `ocarina audio`: per-probe WAV, stage CSVs and `audio.log`. Native-rate CSVs have one row per probe sample (3 s at 1e-7 s is 30 million rows, several GB per probe, so check disk).
+  Pipeline: mean removal, Kaiser-windowed-sinc resample (anti-aliased), 20 Hz zero-phase high-pass, 10 ms fades, peak normalisation to -1 dBFS, 24-bit quantisation. Optional `audio` block in `config.json` (all keys have defaults; not part of the build fingerprint): `sampleRateHz`, `highPassHz`, `fadeMilliseconds`, `peakTargetDbfs`, `sharedGain`, `kernelZeroCrossings`, `kaiserBeta`.
 - `previews/` — optional non-consuming layout previews (`layout.png`).
 - `logs/` — timestamped build steps and solver runs, plus service logs for attaching.
 

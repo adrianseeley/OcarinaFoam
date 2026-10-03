@@ -4,5 +4,6 @@ obj/
 **/.foam-build-*/
 **/renders/
 **/previews/
+**/audio/
 **/logs/
 **/.*.lock

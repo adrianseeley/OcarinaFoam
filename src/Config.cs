@@ -23,5 +23,6 @@ public class Config
     public int acousticDampingStrengthMultiplier = 20;
     public int acousticDampingClearanceMillimeters = 20;
     public RenderConfig renderer = null;
+    public AudioConfig audio = new AudioConfig();
     public Probe[] probes = null;
 }

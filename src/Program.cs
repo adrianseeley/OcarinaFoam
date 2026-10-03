@@ -10,7 +10,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help" or "-h")
             {
-                Console.WriteLine("ocarina build DIR\nocarina simulate [stop] DIR\nocarina render [stop] DIR\nocarina render preview DIR\nocarina start DIR\nocarina stop DIR\nocarina clean DIR\nocarina check DIR\nocarina self-test");
+                Console.WriteLine("ocarina build DIR\nocarina simulate [stop] DIR\nocarina render [stop] DIR\nocarina render preview DIR\nocarina start DIR\nocarina stop DIR\nocarina clean DIR\nocarina audio DIR\nocarina check DIR\nocarina self-test");
                 return 0;
             }
             if (args.Length == 1 && args[0] == "self-test") return SelfTest.Run();
@@ -31,6 +31,7 @@ public static class Program
             if (command == "start" && !stop) { Services.StartAll(root); return 0; }
             if (command == "stop" && !stop) { Services.StopAll(root); return 0; }
             if (command == "clean" && !stop) { Services.Clean(root); return 0; }
+            if (command == "audio" && !stop) { Audio.Run(root); return 0; }
             if (command == "check") { Status.Run(root); return 0; }
             if (command is "simulate" or "render")
             {

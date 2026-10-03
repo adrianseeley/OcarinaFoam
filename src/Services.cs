@@ -79,7 +79,7 @@ public static class Services
     {
         StopAll(root);
         using var gate=Paths.Lock(root,"build");
-        var targets=new List<string>{Paths.Foam(root),Path.Combine(root,"renders"),Path.Combine(root,"previews"),Path.Combine(root,"logs")};
+        var targets=new List<string>{Paths.Foam(root),Path.Combine(root,"renders"),Path.Combine(root,"previews"),Path.Combine(root,"audio"),Path.Combine(root,"logs")};
         targets.AddRange(Directory.GetDirectories(root,".foam-build-*"));
         foreach(string path in targets)
         {

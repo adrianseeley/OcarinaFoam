@@ -119,6 +119,21 @@ public static class SelfTest
         string diff = Renderer.RecipeDifferencePath(Renderer.Recipe(sample, defaultsA), Renderer.Recipe(sample, defaultsB));
         Check(diff == "", "recipe comparison ignores omitted-vs-explicit camera defaults");
 
+        // Audio chain: a 1 kHz tone riding on ambient pressure survives resampling with its frequency and level.
+        {
+            var au = new AudioConfig(); const double fsIn = 1e6;
+            double[] tone = Enumerable.Range(0, 50000).Select(i => 2 * Math.Sin(2 * Math.PI * 1000 * i / fsIn)).ToArray();
+            double[] rs = AudioDsp.Resample(tone, fsIn, au.sampleRateHz, au);
+            double[] faded = AudioDsp.Fade(AudioDsp.HighPass(rs, au.sampleRateHz, au.highPassHz), au.sampleRateHz, au.fadeMilliseconds);
+            double[] db = AudioDsp.Spectrum(faded, au.sampleRateHz, out double bin);
+            int top = Array.IndexOf(db, db.Max());
+            Check(Math.Abs(rs.Length - 4801) <= 1, "resampler yields the expected sample count");
+            Check(Math.Abs(top * bin - 1000) < 2 * bin, "resampled tone keeps its frequency");
+            Check(Math.Abs(AudioDsp.Peak(AudioDsp.Resample(tone, fsIn, au.sampleRateHz, au)) - 2) < 0.02, "resampled tone keeps its amplitude");
+            AudioDsp.Quantise24(new[] { 2.0, -2.0, .5 }, out int clipped);
+            Check(clipped == 2, "quantiser counts clipped samples");
+        }
+
         Console.WriteLine(failures == 0 ? "All checks passed." : failures + " check(s) failed.");
         return failures == 0 ? 0 : 1;
     }

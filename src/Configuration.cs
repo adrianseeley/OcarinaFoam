@@ -11,6 +11,8 @@ public static class Configuration
         ReadCommentHandling = JsonCommentHandling.Skip
     };
 
+    public static string Serialize(object value) => JsonSerializer.Serialize(value, new JsonSerializerOptions { IncludeFields = true });
+
     public static Config Load(string path)
     {
         Config c = JsonSerializer.Deserialize<Config>(File.ReadAllText(path), Json) ?? throw new Exception("Empty config.");
@@ -38,6 +40,12 @@ public static class Configuration
         foreach (Probe probe in c.probes)
             if (probe.point == null || probe.point.Length != 3 || probe.point.Any(v => !double.IsFinite(v)) || string.IsNullOrWhiteSpace(probe.name) || probe.name.Any(ch => !char.IsAsciiLetterOrDigit(ch) && ch != '_'))
                 throw new Exception("Each probe requires a simple alphanumeric name and three finite coordinates in metres.");
+        AudioConfig au = c.audio ?? throw new Exception("audio must not be null.");
+        if (au.sampleRateHz < 8000 || au.sampleRateHz > 384000) throw new Exception("audio sampleRateHz must be 8000..384000.");
+        Nonnegative(au.highPassHz, "highPassHz"); Nonnegative(au.fadeMilliseconds, "fadeMilliseconds");
+        if (au.highPassHz >= au.sampleRateHz / 4.0) throw new Exception("highPassHz must be below a quarter of the audio rate.");
+        if (!double.IsFinite(au.peakTargetDbfs) || au.peakTargetDbfs > 0) throw new Exception("peakTargetDbfs must be finite and at most 0.");
+        Positive(au.kernelZeroCrossings, "kernelZeroCrossings"); Positive(au.kaiserBeta, "kaiserBeta");
         RenderConfig rconf = c.renderer;
         Positive(rconf.renderThreads, "renderThreads"); Positive(rconf.pollMilliseconds, "pollMilliseconds");
         if (rconf.plotWidth < 128 || rconf.plotHeight < 128) throw new Exception("Render tiles must be at least 128 pixels.");
@@ -58,7 +66,7 @@ public static class Configuration
         // Renderer controls are read live on restart; physics is frozen in foam/config.json.
         string text = JsonSerializer.Serialize(c, Json);
         using var document = JsonDocument.Parse(text);
-        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name != "renderer").Select(x => x.ToString()));
+        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name is not ("renderer" or "audio")).Select(x => x.ToString()));
         return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(physical)));
     }
     public static Config Built(string root)
@@ -67,7 +75,7 @@ public static class Configuration
         Config current = Load(Path.Combine(root, "config.json"));
         Config built = Load(Path.Combine(Paths.Foam(root), "config.json"));
         if (Fingerprint(current) != Fingerprint(built)) throw new Exception("Physics config changed since build. Use a fresh case directory and build it.");
-        built.renderer = current.renderer;
+        built.renderer = current.renderer; built.audio = current.audio;
         return built;
     }
 }
