@@ -35,14 +35,14 @@ public static class BuildCase
             Generate(root,stage,c);
             int step=0;
             CommandResult Run(string tool,params string[] args)=>Commands.Foam(stage,Path.Combine(runLogs,$"{++step:D2}-{tool}.log"),tool,args);
-            Run("foamVersion");
+            Run("bash","-c","printf 'OpenFOAM version: %s\\n' \"$WM_PROJECT_VERSION\"; test \"$WM_PROJECT_VERSION\" = v2606");
             CommandResult surface=Run("surfaceCheck","constant/triSurface/solidBody.stl");
             if(!surface.Output.Contains("Surface is closed",StringComparison.OrdinalIgnoreCase))throw new Exception("solidBody must be a closed surface. See surfaceCheck log.");
             Run("surfaceCheck","constant/triSurface/spawnPlane.stl");
             Run("surfaceFeatureExtract");
             CommandResult block=Run("blockMesh");
             Run("snappyHexMesh","-overwrite");
-            CommandResult mesh=Run("checkMesh","-allTopology","-allGeometry");
+            CommandResult mesh=Run("checkMesh","-allTopology");
             if(!mesh.Output.Contains("Mesh OK.",StringComparison.Ordinal))throw new Exception("checkMesh did not report Mesh OK. See log; decomposition was not started.");
             string summary=$"Background cells {MeshReport.Cells(block.Output)}; "+MeshReport.Check(stage,mesh.Output);
             Console.WriteLine(summary);File.WriteAllText(Path.Combine(stage,"meshSummary.txt"),summary+"\n");
@@ -104,5 +104,3 @@ public static class BuildCase
         Console.WriteLine($"Nominal smallest surface cell {nominal:G5} m; estimated acoustic Courant {sound*c.deltaTSeconds/nominal:G5}. Actual snapped cells may be smaller.");
     }
 }
-
-

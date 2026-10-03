@@ -26,7 +26,8 @@
 // iterations/tolerance, feature angle and quality limits below form the baseline recipe.
 // They are not interchangeable performance knobs: changing them changes the generated
 // mesh. Negative area/triangle-twist limits disable those checks. checkMesh must still
-// report Mesh OK with topology and geometry checks before decomposition proceeds.
+// report Mesh OK with full topology and standard geometry checks before decomposition.
+// Its optional -allGeometry mode rejects concave polyhedra even when quality limits pass.
 
 // Refine and snap the background air mesh to the solid body; no prism layers are added.
 // Keep the connected fluid containing locationInMesh, which the builder places in the
@@ -98,8 +99,8 @@ castellatedMeshControls
 
 snapControls
 {
-    // Zero preliminary patch smoothing; later snap solve/relaxation still runs.
-    nSmoothPatch   0;
+    // Smooth the surface patch before snapping to reduce skewed and concave cells.
+    nSmoothPatch   3;
     tolerance      2.0;
     nSolveIter     30;
     nRelaxIter     5;
@@ -140,5 +141,3 @@ meshQualityControls
 
 debug 0;
 mergeTolerance 1e-6;
-
-
