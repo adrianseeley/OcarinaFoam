@@ -25,7 +25,7 @@ public static class Status
         for(int i=0;i<processors.Length;i++)
         {
             string[] times=Renderer.Times(processors[i],out _);
-            Console.WriteLine($"Rank {i}: {times.Length} positive times; latest {times.LastOrDefault()??"0"}");
+            Console.WriteLine($"Rank {i}: {times.Length} positive times; latest {times.LastOrDefault()??"initial"}");
         }
         Console.WriteLine("Logs: "+Path.Combine(root,"logs"));
     }

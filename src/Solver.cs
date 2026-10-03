@@ -10,7 +10,7 @@ public static class Solver
         foreach(string part in parts)
         {
             if(!Directory.Exists(Path.Combine(part,"constant","polyMesh")))throw new Exception("Missing mesh: "+part);
-            string[] times=Renderer.Times(part,out _);string candidate=times.LastOrDefault()??"0";
+            string[] times=Renderer.Times(part,out _);string candidate=times.LastOrDefault()??ZeroTime(part);
             if(latest!=null&&candidate!=latest)throw new Exception("Latest times differ across processors. Refusing an inconsistent restart; inspect the last write.");
             latest=candidate;
             foreach(string field in new[]{"p","U","T","nut","alphat"})
@@ -29,15 +29,25 @@ public static class Solver
         if(c.processorCount==1) Commands.Foam(foam,log,"rhoPimpleFoam");
         else Commands.Foam(foam,log,"mpirun","-np",c.processorCount.ToString(),"rhoPimpleFoam","-parallel");
     }
+    // The initial directory is named by timeFormat (e.g. "0" or "0.0000000000"), so match it numerically.
+    public static string ZeroTime(string part)
+    {
+        foreach(string d in Directory.GetDirectories(part))
+        {
+            string name=Path.GetFileName(d);
+            if(double.TryParse(name,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out double v)&&v==0)return name;
+        }
+        throw new Exception("Missing initial time directory in "+part);
+    }
     public static void RestoreReference(string[] parts,string latest)
     {
         // readFields registers UMean with NO_WRITE; it is absent from later writes.
         // Restore the fixed reference from each decomposed initial directory before
         // resuming. This is input setup, not a fallback for incomplete solver output.
-        if(latest=="0")return;
+        if(latest==ZeroTime(parts[0]))return;
         foreach(string part in parts)
         {
-            string source=Path.Combine(part,"0","UMean");
+            string source=Path.Combine(part,ZeroTime(part),"UMean");
             string target=Path.Combine(part,latest,"UMean");
             if(File.Exists(source))
             {
