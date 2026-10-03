@@ -1,3 +1,23 @@
+﻿// BASELINE: SOURCE-ALIGNED RECTANGULAR OUTER DOMAIN
+// The builder expands the solid's millimetre bounding box by configured padding. A
+// positive padding rounds outwards to coarse cell boundaries; ZERO padding means exactly
+// the solid's bounding coordinate, so that span need not be a multiple of the cell size
+// (cell counts are ceil'd and the last band may be narrower or slightly wider than nominal).
+// The reduced-domain experiment pads only +Z; see README Reduced-domain experiment. It aligns X/Z block bands to the inlet
+// rectangle so airSource is a real boundary patch, not a volumetric momentum source.
+// Y is positive into the throat. A CAD inlet face must lie at y=0 and the world must
+// start there; yMin padding is zero. Other exterior faces share atmosphere.
+// 
+// Uniform simpleGrading (1 1 1) keeps coarse cells easy to reason about. Source-aligned
+// remainder bands may be narrower than the nominal coarse size, so refinement levels
+// alone do not determine the minimum cell width. Grading could reduce far-field cost
+// but introduces additional directional variation and transition choices.
+// 
+// The inlet is the rectangular X/Z bounds of the planar spawn face. Curved or arbitrary
+// inlets are outside this baseline. Mesh vertices and both copied STLs are converted
+// to metres before OpenFOAM runs. scale 1 must remain 1; extracted eMesh and snappy
+// surface geometry then share one coordinate system. The original input STLs stay in mm.
+
 // Background air domain. The generator supplies metre-valued vertices, source-aligned
 // hex blocks and exterior patch faces; scale 1 avoids a second unit conversion.
 // airSource is the minimum-Y inlet rectangle; all other outer faces are atmosphere.
@@ -51,4 +71,5 @@ boundary
 mergePatchPairs
 (
 );
+
 

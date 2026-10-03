@@ -1,3 +1,21 @@
+// BASELINE: DRY, CALORICALLY PERFECT AIR
+// hePsiThermo couples density/compressibility to thermodynamic pressure and temperature.
+// pureMixture is a single gas, not reacting chemistry or a humidity/species transport
+// model. perfectGas retains density changes and acoustic propagation; an incompressible
+// solver would remove the compressibility that stores acoustic energy in the cavity.
+// eConst and sensibleInternalEnergy solve e with constant Cv. An enthalpy formulation
+// is another valid formulation but also changes the energy equation and its schemes.
+// Do not switch only this line while leaving div(phi,e) and e solvers unchanged.
+// 
+// The baseline keeps molecular weight 28.9 kg/kmol, Cv 712 J/(kg K), dynamic viscosity
+// 1.8e-5 Pa s and Pr 0.7. R=8314.46261815324/molWeight and gamma=1+R/Cv; the builder
+// uses this same gamma for the pressure boundary and acoustic Courant estimate.
+// Temperature-dependent transport (e.g. Sutherland) and variable heat capacity may
+// matter over wider temperature ranges. At the narrow ambient conditions here,
+// constant properties give a transparent reference with fewer interacting assumptions.
+// This does not include condensation, humidity, wall conduction, or vibrating walls.
+// For a new physical model, fork the baseline and record which assumptions changed.
+
 // Idealised single-component air: perfect gas, constant Cv and transport properties.
 // The solved energy variable is sensible internal energy e. This is a compressible
 // fluid model, not conjugate heat transfer or a model of the wood/clay structure.

@@ -1,3 +1,13 @@
+// BASELINE: UNCOLLATED STATIC PARTITIONS
+// scotch uses mesh connectivity to balance cells/cut interfaces across MPI ranks.
+// simple/hierarchical decomposition offers geometric control; manual assignment can
+// support specialised experiments. The default is scotch so arbitrary ocarina shapes
+// do not need user-chosen partition directions. Changing rank count can change floating
+// point reduction order and small numerical details: record it in comparisons.
+// The CLI uses this same count for mpirun and field discovery. One rank runs serially
+// without decomposePar. Multiple ranks use processorN directories, never collated I/O.
+// Repartition only by building a fresh case: the renderer caches the static cell order.
+
 // scotch partitions the mesh graph among the configured number of MPI ranks.
 // Keep this number aligned with mpirun -np and the renderer's ProcessorCount.
 // The renderer requires ordinary uncollated processor0, processor1, ... directories.

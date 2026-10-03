@@ -1,0 +1,35 @@
+using System.Collections.Concurrent;
+using System.Globalization;
+using System.IO.Compression;
+using System.Numerics;
+using System.Runtime;
+using SkiaSharp;
+
+public static partial class Renderer
+{
+    // Draw cell-centre circles with normalised scalar hue and delta-driven opacity.
+    // Clip to this tile. Point size is in pixels, not cell volume: refined regions
+    // contain more samples and can appear denser/brighter through overlap.
+    public static void RenderTile(SKCanvas canvas, SKPaint paint, View view, Camera camera, Particle[] cloud, float[] alpha, int[] order, float font, float offsetX, float offsetY)
+    {
+        canvas.Save();
+        canvas.ClipRect(new SKRect(offsetX, offsetY, offsetX + PlotWidth, offsetY + PlotHeight)); // Confine points to this tile only.
+        SKColor[] pointPalette = Palette();
+        float radius = view.SizePixels * 0.5f;
+        for (int i = 0; i < order.Length; i++)
+        {
+            int index = order[i];
+            if (alpha[index] <= 0f)
+            {
+                continue; // Unchanged since the previous frame: nothing new to show here.
+            }
+            Particle point = cloud[index];
+            SKPoint screen = Project(point.Position, camera);
+            int colorIndex = (int)(point.Color * (pointPalette.Length - 1));
+            paint.Color = pointPalette[colorIndex].WithAlpha((byte)Math.Round(alpha[index] * 255));
+            canvas.DrawCircle(screen, radius, paint);
+        }
+        TileTitle(canvas, font, view, offsetX, offsetY);
+        canvas.Restore();
+    }
+}

@@ -1,3 +1,18 @@
+// BASELINE: WALE LARGE-EDDY CLOSURE
+// The jet and edge region can generate unsteady shear and vortices. LES evolves the
+// resolved motion and models smaller-scale momentum transport. WALE uses local
+// velocity-gradient information and has useful near-wall asymptotic behaviour.
+// cubeRootVol defines its filter length from cell volume; stretched cells can have
+// very different directional resolution despite the same filter width.
+// 
+// Alternatives: laminar means no subgrid model, NOT a promise of DNS resolution.
+// Smagorinsky is another LES closure; dynamic closures adapt coefficients at added
+// complexity/cost. RANS/URANS models much more of the turbulence and can change the
+// unsteady jet/acoustic feedback. None is universally correct for every ocarina.
+// We fix WALE for baseline comparisons, then vary mesh/time resolution before claiming
+// an audible difference is caused by geometry. No wall functions or prism layers are
+// used in this baseline; wall/shear/thermal losses still require a resolution study.
+
 // WALE large-eddy simulation models unresolved momentum transport from local gradients.
 // The cubeRootVol filter width follows cell volume. Choosing LES does not by itself
 // resolve turbulence: spatial/time resolution and near-wall treatment still need study.

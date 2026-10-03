@@ -1,3 +1,10 @@
+// TURBULENCE SUPPORT FIELD
+// nut is kinematic eddy viscosity [m^2/s], initially zero. WALE supplies the closure;
+// this is not the molecular viscosity specified in thermophysicalProperties.
+// Zero-gradient patches are the simple baseline support conditions. Wall functions
+// would impose a different near-wall model and must be paired with mesh/y+ targets.
+// Do not add one as a silent fix to make a coarse-mesh comparison appear converged.
+
 // Kinematic turbulent viscosity initial/boundary field, initially zero.
 // WALE supplies modelled eddy viscosity during the solve. All patches use zeroGradient;
 // there are no dedicated wall functions configured here. Reassess near-wall resolution

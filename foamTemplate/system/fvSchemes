@@ -1,3 +1,23 @@
+// BASELINE: CONTROLLED NUMERICAL DISSIPATION
+// CrankNicolson 0.9 is second-order-oriented time integration with off-centring toward
+// Euler for robustness. Euler alone is more dissipative; backward is a common implicit
+// second-order alternative with different phase/damping error. Time resolution still
+// controls acoustic dispersion: a named scheme is not an accuracy certificate.
+// 
+// Gauss linear gradients/interpolation provide centred spatial interpolation. LUST
+// blends linear and linearUpwind contributions for velocity and internal-energy
+// convection. Pure upwind is robust but damps fluctuations; pure linear reduces
+// upwind dissipation but can oscillate on difficult meshes. The blend is this repo's
+// fixed compromise, not an optimised acoustic scheme. K and pressure-work convection
+// remain linear as shown. div default none catches a new equation requiring a scheme.
+// 
+// Corrected Laplacian and normal gradients compensate for non-orthogonal cell faces.
+// Limited corrections can improve robustness on poor cells at an accuracy cost;
+// orthogonal/uncorrected choices suit very different mesh assumptions. Prefer a
+// better mesh and checkMesh acceptance rather than hiding bad cells with numerics.
+// meshWave is the wall-distance calculation used by turbulence support, not an
+// acoustic wave solver. Change any of these choices as a named numerical experiment.
+
 // Discretisation: translate differential equations into operations on mesh cells.
 // CrankNicolson 0.9 biases toward time-centred integration with off-centring for damping.
 // LUST adds an upwind contribution to linear interpolation for U and internal energy.

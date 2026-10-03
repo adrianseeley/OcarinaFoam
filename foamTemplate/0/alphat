@@ -1,3 +1,10 @@
+// TURBULENT HEAT TRANSPORT SUPPORT
+// In this compressible formulation alphat has dynamic diffusivity dimensions, not the
+// kinematic dimensions of nut. It starts at zero and uses the baseline zero-gradient
+// patch treatment. A turbulent thermal wall function would change near-wall heat flux;
+// that requires matching thermal boundary assumptions and mesh resolution. This field
+// is unrelated to the visual opacity used in PNG rendering.
+
 // Turbulent thermal diffusivity field in the compressible formulation, initially zero.
 // All patches use zeroGradient. This is solver support data, not particle transparency;
 // renderer alpha is computed separately from changes in each visualised field.

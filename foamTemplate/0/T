@@ -1,3 +1,15 @@
+// THERMAL APPROXIMATION
+// Temperature is absolute kelvin; the config starts in Celsius and the builder adds
+// 273.15. Inlet fixedValue represents a constant supply temperature. atmosphere
+// inletOutlet uses ambient temperature on inflow and zero normal gradient on outflow.
+// An all-fixed exterior temperature would constrain the outgoing energy differently.
+// 
+// Wall zeroGradient is an adiabatic approximation. A fixed wall temperature or coupled
+// solid heat-transfer calculation would change thermal boundary layers and losses.
+// The baseline solves only fluid energy: wood/clay heat capacity and wall conduction
+// are absent. Do not equate no-slip momentum treatment with resolved thermoviscous
+// acoustic losses. Near-wall spatial/time resolution and thermal BCs need validation.
+
 // Temperature in kelvin. Inlet temperature is fixed; atmosphere uses the specified
 // ambient value for inflow and zero gradient for outflow. Solid-wall zero gradient
 // represents the thermal boundary approximation; no solid temperature is solved.

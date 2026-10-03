@@ -1,8 +1,16 @@
+// BASELINE: EXPLICIT SHARP EDGES FROM THE METRE-SCALE SURFACE
+// includedAngle identifies geometric feature edges; it is distinct from snappy's
+// resolveFeatureAngle and from a requested mesh cell size. Open/non-manifold edges
+// are included in the extracted set, but solidBody must pass a closed-surface check.
+// Leaving explicit features out can round/simplify a thin lip during snapping; excessive
+// feature constraints can increase cells or obstruct meshing on noisy tessellations.
+// We retain explicit edges to keep the sharp labium geometry reproducible. writeObj
+// is off because intermediate visual exports are not consumed by this pipeline.
+
 // Extract sharp, open and non-manifold edges for explicit feature refinement/snapping.
 // The included angle threshold is distinct from snappy's resolveFeatureAngle.
-// Frozen limitation: the input STL is copied in mm and this dictionary has no scale
-// entry, although snappy's surface uses a metre conversion. Verify eMesh bounds;
-// do not assume the surface geometry scale also transforms the feature file.
+// Input geometry was converted from millimetres to metres by the C# builder.
+// Feature extraction and snappy therefore see exactly the same coordinates.
 
 FoamFile
 {

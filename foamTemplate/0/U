@@ -1,3 +1,15 @@
+// JET DRIVING AND WALL CHOICES
+// The inlet switches immediately from still initial air to constant positive-Y speed.
+// That deliberate step produces an attack transient. It is repeatable, but is not a
+// measured human breath ramp. A time-varying inlet would change attack spectra and
+// onset timing; a pressure-driven inlet would change feedback at the player's end.
+// 
+// noSlip includes viscous contact with a stationary rigid surface. slip would remove
+// tangential shear and change damping/jet development. Moving/deforming walls would
+// need a structural model and a different renderer mesh contract. At atmosphere,
+// pressureInletOutletVelocity lets pressure drive outlet/inlet behaviour; specified
+// inletValue sets the reference for returning flow. Keep it paired with the p model.
+
 // Velocity in metres per second. The initially still fluid is driven immediately by
 // fixed +Y inlet velocity; there is no startup ramp or prescribed breath pressure.
 // No-slip rigid walls represent viscous contact; atmosphere permits pressure-driven flow.

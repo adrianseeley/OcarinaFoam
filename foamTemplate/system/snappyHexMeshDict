@@ -1,8 +1,37 @@
+﻿// BASELINE: STATIC BODY-FITTED MESH, NO ADAPTIVE REMESHING
+// Castellation selects/refines cells; snapping moves their boundary toward the STL.
+// Explicit feature edges protect sharp geometry such as the labium. Surface level L
+// roughly halves the coarse spacing L times; min/max surface levels and the feature
+// level are independent inputs. Distance bands refine a surrounding volume so the
+// jet is not resolved only exactly on the wall. nCellsBetweenLevels controls how
+// quickly refinement transitions across neighbouring cells.
+// 
+// locationInMesh sits in the retained exterior air above the body (+Z), off every cell
+// face at all refinement levels. Only the connected fluid component
+// containing it is retained. The chamber must connect through real openings; a sealed
+// or accidentally plugged cavity is not an acoustic cavity in the generated mesh.
+// Refinement does not repair a malformed STL or guarantee resolution of a narrow gap.
+// 
+// No prism layers: this keeps thin throat/labium meshing predictable at this stage.
+// Adding layers may better resolve wall gradients but can collapse in narrow passages
+// and requires explicit thickness/growth/y+ studies. Dynamic mesh refinement would
+// invalidate the renderer's fixed mesh-to-field cell ordering and is unsupported.
+// 
+// The current cell ceilings are label limits, NOT memory budgets. Provision RAM from
+// measured mesh size and refine cautiously. Increasing surface levels can multiply
+// cell counts steeply. Build runs mesh utilities serially; only the final solver mesh
+// is decomposed. This avoids extra intermediate parallel/reconstruction workflows.
+// 
+// Explicit feature snapping is on; implicit snapping is off. Patch smoothing, snapping
+// iterations/tolerance, feature angle and quality limits below form the baseline recipe.
+// They are not interchangeable performance knobs: changing them changes the generated
+// mesh. Negative area/triangle-twist limits disable those checks. checkMesh must still
+// report Mesh OK with topology and geometry checks before decomposition proceeds.
+
 // Refine and snap the background air mesh to the solid body; no prism layers are added.
-// Keep the connected fluid containing locationInMesh, which the builder places near
-// an outer corner. A sealed cavity disconnected from that point will not be retained.
-// The STL has a local scale conversion here. The separately extracted eMesh has no
-// matching scale entry in the frozen feature-extraction template: inspect alignment.
+// Keep the connected fluid containing locationInMesh, which the builder places in the
+// exterior air above the body; it connects through the voicing to chamber and throat. A sealed cavity disconnected from that point will not be retained.
+// Both STL and extracted features are already in metres.
 // Quality thresholds guide snapping but checkMesh remains necessary on the result.
 
 FoamFile
@@ -23,7 +52,7 @@ geometry
     {
         type    triSurfaceMesh;
         name    solidWalls;
-        scale   {{STL_SCALE}};
+        scale   1;
     }
 }
 
@@ -111,4 +140,5 @@ meshQualityControls
 
 debug 0;
 mergeTolerance 1e-6;
+
 

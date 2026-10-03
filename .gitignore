@@ -1,4 +1,7 @@
-# Generated case trees and review bundles are disposable build outputs.
-
-*Case/
-cc.txt
+bin/
+obj/
+**/foam/
+**/.foam-build-*/
+**/renders/
+**/logs/
+**/.*.lock

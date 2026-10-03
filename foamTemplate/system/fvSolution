@@ -1,3 +1,23 @@
+// BASELINE: CONVERGE THE COUPLED EQUATIONS EACH STEP
+// PCG with DIC is selected for the pressure/density symmetric linear systems.
+// An asymmetric matrix would require a compatible solver such as PBiCGStab; GAMG
+// is another pressure option whose setup and scaling can favour larger meshes.
+// smoothSolver with symGaussSeidel treats the velocity/energy matrices. These are
+// linear-algebra choices, not different gas laws or turbulence closures.
+// 
+// Absolute tolerance 1e-8 limits the reported algebraic residual. relTol 0.01 permits
+// intermediate solves to stop after a substantial relative reduction; the Final
+// entries set relTol 0 so the final solve seeks the absolute tolerance. Residuals do
+// not directly bound microphone amplitude error. Monitor waveforms and conservation.
+// 
+// Three outer PIMPLE correctors allow repeated pressure/velocity/energy coupling;
+// one pressure corrector and zero extra non-orthogonal correctors bound per-step cost.
+// More correctors may improve coupling on difficult timesteps/meshes, but mesh and
+// dt convergence remain separate questions. momentumPredictor yes solves momentum
+// before correction. Equation relaxation 1 avoids extra under-relaxation in this
+// transient setup. pMinFactor/pMaxFactor are numerical pressure safeguards; repeated
+// limiting is evidence to investigate, not physical amplitude clipping to rely on.
+
 // Linear solve tolerances and PIMPLE pressure/velocity coupling.
 // Final solves remove the relative tolerance shortcut. Three outer iterations add
 // coupling work per timestep; zero non-orthogonal correctors keeps that loop minimal.

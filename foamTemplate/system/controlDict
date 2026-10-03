@@ -1,8 +1,37 @@
+// BASELINE: FIXED CLOCK, TWO DATA PRODUCTS
+// rhoPimpleFoam solves transient compressible flow with pressure/velocity coupling.
+// The fixed deltaT keeps probe timestamps and frame indices predictable. A changing
+// timestep (adjustTimeStep yes) could control flow Courant number but would break
+// this renderer's fixed write-step mapping; it is outside this baseline contract.
+// For acoustics assess (|U|+c)*dt/dx, not just the solver's convective Courant number.
+// The builder prints a nominal estimate; snapped cells and remainder mesh bands can
+// be smaller than the nominal refinement spacing. Reduce dt for convergence studies.
+// 
+// Full fields are written every FIELD_WRITE_INTERVAL steps, probes independently at
+// PROBE_WRITE_INTERVAL. Probe sampling is what sets waveform Nyquist frequency;
+// video playback fps has no connection to the physical simulation clock.
+// writeFormat ascii and writeCompression on are fixed. Binary is smaller/faster but
+// outside the transparent streaming reader contract. Compression trades CPU for I/O.
+// writePrecision 10 retains useful ASCII precision; timePrecision 10 must continue
+// to distinguish all written times for any experiment you design.
+// 
+// purgeWrite 0 is essential: the renderer alone consumes old positive time folders.
+// It leaves three newer writes on every rank, plus the last rendered predecessor.
+// The builder rounds requested duration up to a field-write boundary and adds three
+// writes so the requested final frame becomes eligible. Probe data includes that
+// small guard tail; crop it by physical time during analysis. No automatic final flush.
+// latestTime resumes the newest surviving write. The CLI checks rank agreement and
+// mandatory field completeness first; it does not silently roll back a damaged write.
+// 
+// runTimeModifiable is off: physical settings are frozen for a built case. Build a
+// new case to change the experiment. Live dictionary edits would undermine comparison
+// and could invalidate the renderer's timestep/mesh assumptions.
+
 // Transient compressible solve with fixed timestep and two independent sampling rates.
 // Full fields feed the renderer; probes preserve compact p/U/T time histories.
 // purgeWrite 0 delegates old-field removal to the renderer. latestTime permits restart,
 // but the newest surviving directory must be complete on every processor.
-// runTimeModifiable applies to OpenFOAM dictionaries, not the baked C# renderer settings.
+// Runtime physics changes are disabled; use a newly built case for a new experiment.
 
 FoamFile
 {
@@ -26,14 +55,14 @@ writeControl        timeStep;
 writeInterval       {{FIELD_WRITE_INTERVAL}};
 purgeWrite          0;
 
-writeFormat         {{FIELD_WRITE_FORMAT}};
+writeFormat         ascii;
 writePrecision      10;
-writeCompression    {{FIELD_WRITE_COMPRESSION}};
+writeCompression    on;
 
 timeFormat          general;
 timePrecision       10;
 
-runTimeModifiable   true;
+runTimeModifiable   false;
 
 functions
 {
@@ -49,7 +78,7 @@ functions
         writeControl    none;
     }
 
-    // Six points are specified in buildCase.js in metres; moving CAD does not move them.
+    // Probe coordinates come from config.json in metres; moving CAD does not move them.
     acousticProbes
     {
         type            probes;

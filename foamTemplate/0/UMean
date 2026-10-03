@@ -1,3 +1,11 @@
+// SPONGE REFERENCE, NOT A STATISTICAL RESULT
+// The readFields function loads UMean from the selected start time. The CLI restores it from
+// each rank's initial directory before a resume, because readFields uses NO_WRITE.
+// Every component is zero, including patch values. The damping source relaxes toward
+// still ambient air; it does not track or subtract a running flow average. Replacing
+// this with a measured/reference background flow changes the sponge physics. Do not
+// add a fieldAverage function under the same name: it would redefine the reference.
+
 // Zero reference velocity read by loadReferenceFields for acousticDampingSource.
 // Despite its name this field is not an accumulated mean and is not updated by an
 // averaging function. The sponge therefore relaxes toward stationary ambient air.

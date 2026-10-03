@@ -1,3 +1,18 @@
+// PRESSURE BOUNDARY CHOICES
+// p is absolute pressure, initialised from ambient hectopascals converted to pascals.
+// The prescribed inlet velocity uses zeroGradient pressure, rather than overprescribing
+// both pressure and velocity at the inlet. A breath-pressure/totalPressure inlet would
+// be a different driving experiment: the jet flow would respond to cavity feedback.
+// Rigid-wall zeroGradient is the baseline pressure condition with stationary no-slip U.
+// 
+// waveTransmissive advects the pressure boundary with a wave speed including sound
+// speed. thermo:psi supplies compressibility; gamma matches the thermodynamic model.
+// fieldInf is ambient pressure; lInf sets far-field relaxation length. A fixed-pressure
+// boundary can reflect strongly, while zeroGradient alone is not an acoustic absorber.
+// This approximate radiation condition plus the sponge is our fixed exterior model,
+// not a reflection-free guarantee. Assess domain-size and absorber sensitivity before
+// interpreting far-microphone pressure as a free-field physical measurement.
+
 // Absolute thermodynamic pressure in pascals, not gauge pressure or p/rho.
 // The inlet and solid use zero normal gradient; the exterior uses waveTransmissive
 // with an ambient reference and relaxation length. This is an approximate open boundary,
