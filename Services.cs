@@ -73,6 +73,20 @@ public static class Services
         }
         if(errors.Count>0)throw new Exception(string.Join("\n",errors));
     }
+    // Stop services, then delete everything generated; inputs (STLs, config.json, model files) stay.
+    public static void Clean(string root)
+    {
+        StopAll(root);
+        using var gate=Paths.Lock(root,"build");
+        var targets=new List<string>{Paths.Foam(root),Path.Combine(root,"renders"),Path.Combine(root,"previews"),Path.Combine(root,"logs")};
+        targets.AddRange(Directory.GetDirectories(root,".foam-build-*"));
+        foreach(string path in targets)
+        {
+            if(!Directory.Exists(path))continue;
+            Directory.Delete(path,true);
+            Console.WriteLine("removed "+path);
+        }
+    }
     public static void Stop(string root,string kind)
     {
         using var gate=Paths.Lock(root,"build");

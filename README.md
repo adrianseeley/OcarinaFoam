@@ -83,6 +83,7 @@ ocarina check "$HOME/myCase"
 | `ocarina render stop DIR` | Stop renderer workers and remove its unit. Keep logs/results. |
 | `ocarina start DIR` | Operator shortcut: start the solver and renderer services detached (no log following). Already-running services are left alone. |
 | `ocarina stop DIR` | Stop the renderer, then the solver, removing both units. Keeps logs/results. |
+| `ocarina clean DIR` | Stop both services, then delete everything generated: `foam/`, `renders/`, `previews/`, `logs/` and leftover build stages. Keeps your inputs (STLs, `config.json`, model files). |
 | `ocarina check DIR` | Show both service states, complete rendered frame count, eligible backlog, held writes and latest time per rank. |
 
 Services continue after Ctrl+C and SSH logout. They do **not** restart on failure or
