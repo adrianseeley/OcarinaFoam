@@ -44,7 +44,7 @@ public static partial class Renderer
         RenderRecipe candidate = Recipe(r, Tiles);
         string stamp=Path.Combine(OutputDirectory,"config.json");
         bool hasDone = Directory.Exists(Path.Combine(OutputDirectory, ".done")) && Directory.EnumerateFiles(Path.Combine(OutputDirectory, ".done"), "*.json").Any();
-        bool hasPng = Directory.Exists(OutputDirectory) && Directory.EnumerateFiles(OutputDirectory, "*.png", SearchOption.TopDirectoryOnly).Any();
+        bool hasPng = Directory.Exists(OutputDirectory) && Directory.EnumerateFiles(OutputDirectory, "*.png", SearchOption.AllDirectories).Any();
         bool hasOutputs = hasDone || hasPng;
         if (File.Exists(stamp))
         {

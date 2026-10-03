@@ -124,7 +124,7 @@ public static partial class Renderer
         float contentHeight = plotHeight - 3 * marginPixels - labelFontPixels;
         if (contentWidth <= 0 || contentHeight <= 0) throw new Exception("renderer margin/title settings leave no camera content area.");
         if (plotWidth - 2 * marginPixels < 2) throw new Exception("renderer legend bar width must be at least 2 pixels.");
-        float finalLegendBaseline = marginPixels + 8 * labelFontPixels + 56;
+        float finalLegendBaseline = marginPixels + 8 * labelFontPixels + 68;
         if (finalLegendBaseline > plotHeight - marginPixels) throw new Exception("renderer plotHeight is too small for legend labels with current margins and font.");
         if (rows <= 0 || columns <= 0) throw new Exception("renderer.tiles must be a nonempty rectangular matrix.");
     }

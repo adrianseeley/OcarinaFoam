@@ -99,8 +99,10 @@ are rejected rather than silently disagreeing with the generated dictionaries.
 
 - `foam/` — generated dictionaries, metre-scale STLs, static mesh, config snapshot,
   `processorN/` fields when parallel, and `postProcessing/` probe time series.
-- `renders/` — `00000001.pressure.png`, velocity-magnitude/density/temperature images,
-  and completion records. One countable frame includes all enabled fields.
+- `renders/` — separate `pressure/`, `velocityMagnitude/`, `density/`, and
+  `temperature/` directories containing nine-digit PNG names such as
+  `pressure/000000000.png`, plus completion records. One countable frame includes
+  all enabled fields.
 - `previews/` — optional non-consuming layout previews (`layout.png`).
 - `logs/` — timestamped build steps and solver runs, plus service logs for attaching.
 

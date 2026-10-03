@@ -19,9 +19,9 @@ public static partial class Renderer
         float x = offsetX + MarginPixels;
         float y = offsetY + MarginPixels + LabelFontPixels;
         LineFont.Draw(canvas, "t = " + FormatTime(time), x, y, SKTextAlign.Left, font, textPaint, PlotWidth - 2 * MarginPixels);
-        y += LabelFontPixels + 8;
+        y += LabelFontPixels + 12;
         LineFont.Draw(canvas, field.Name, x, y, SKTextAlign.Left, font, textPaint, PlotWidth - 2 * MarginPixels);
-        y += LabelFontPixels + 8;
+        y += LabelFontPixels + 12;
         LineFont.Draw(canvas, count.ToString("N0", CultureInfo.InvariantCulture) + " points", x, y, SKTextAlign.Left, font, textPaint, PlotWidth - 2 * MarginPixels);
         y += LabelFontPixels + 24;
 
@@ -31,7 +31,7 @@ public static partial class Renderer
             ? "uniform: midpoint colour"
             : minimum.ToString(decimalFormat, CultureInfo.InvariantCulture) + unitSuffix + " -> " + maximum.ToString(decimalFormat, CultureInfo.InvariantCulture) + unitSuffix;
         LineFont.Draw(canvas, scale, x, y, SKTextAlign.Left, font, textPaint, PlotWidth - 2 * MarginPixels);
-        y += LabelFontPixels + 12;
+        y += LabelFontPixels + 16;
 
         float legendLeft = offsetX + MarginPixels;
         float legendRight = offsetX + PlotWidth - MarginPixels;

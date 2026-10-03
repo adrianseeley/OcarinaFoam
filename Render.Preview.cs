@@ -60,11 +60,11 @@ public static partial class Renderer
         float y = offsetY + MarginPixels + LabelFontPixels;
         float width = PlotWidth - 2 * MarginPixels;
         LineFont.Draw(canvas, "LAYOUT PREVIEW", x, y, SKTextAlign.Left, font, textPaint, width);
-        y += LabelFontPixels + 8;
-        LineFont.Draw(canvas, "NO FIELD DATA", x, y, SKTextAlign.Left, font, textPaint, width);
-        y += LabelFontPixels + 24;
-        LineFont.Draw(canvas, "sample color bar", x, y, SKTextAlign.Left, font, textPaint, width);
         y += LabelFontPixels + 12;
+        LineFont.Draw(canvas, "NO FIELD DATA", x, y, SKTextAlign.Left, font, textPaint, width);
+        y += LabelFontPixels + 28;
+        LineFont.Draw(canvas, "sample color bar", x, y, SKTextAlign.Left, font, textPaint, width);
+        y += LabelFontPixels + 16;
         float legendLeft = offsetX + MarginPixels;
         float legendRight = offsetX + PlotWidth - MarginPixels;
         float legendTop = y;

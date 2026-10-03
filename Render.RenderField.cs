@@ -49,8 +49,10 @@ public static partial class Renderer
             }
         }
         DrawGrid(canvas, compositeWidth, compositeHeight);
-        string stem = Path.Combine(OutputDirectory, frame.ToString("D8", CultureInfo.InvariantCulture) + "." + field.Name);
-        SavePng(bitmap, stem + ".png");
+        string fieldDirectory = Path.Combine(OutputDirectory, field.Name);
+        Directory.CreateDirectory(fieldDirectory);
+        string path = Path.Combine(fieldDirectory, frame.ToString("D9", CultureInfo.InvariantCulture) + ".png");
+        SavePng(bitmap, path);
         Console.WriteLine("  " + field.Name + " composite saved (" + CameraTileCount + " cameras, " + LegendTileCount + " legends, " + compositeWidth + "x" + compositeHeight + ")");
     }
 }
