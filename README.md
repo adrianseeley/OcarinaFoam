@@ -81,7 +81,7 @@ ocarina check "$HOME/myCase"
 | `ocarina render DIR` | The same lifecycle for the runtime-configured renderer. |
 | `ocarina render preview DIR` | Foreground layout preview at `DIR/previews/layout.png` using the built solid wireframe; consumes no field history and does not write `renders/config.json`. |
 | `ocarina render stop DIR` | Stop renderer workers and remove its unit. Keep logs/results. |
-| `ocarina start DIR` | Operator shortcut: start the solver and renderer services detached (no log following). Already-running services are left alone. |
+| `ocarina start DIR` | Operator shortcut: start the solver and renderer as detached services, then stay in the foreground reporting every 30 s: frames simulated and remaining, simulation rate, estimated time left, frames fully rendered and remaining. Ctrl+C detaches; the services keep running. Exits by itself when both stop. Already-running services are left alone. |
 | `ocarina stop DIR` | Stop the renderer, then the solver, removing both units. Keeps logs/results. |
 | `ocarina clean DIR` | Stop both services, then delete everything generated: `foam/`, `renders/`, `previews/`, `logs/` and leftover build stages. Keeps your inputs (STLs, `config.json`, model files). |
 | `ocarina check DIR` | Show both service states, complete rendered frame count, eligible backlog, held writes and latest time per rank. |
@@ -125,7 +125,7 @@ retained files let you diagnose what failed before explicitly retrying.
 
 ## Source layout and verification
 
-One `ocarina.csproj`, no application namespaces. Data types have public fields only.
+One `ocarina.csproj` at the root, sources in `src/`, no application namespaces. Data types have public fields only.
 The `.cs` files contain static operations; renderer functions are split into
 `Render.*.cs` files sharing one static class. `foamTemplate/` owns simulation policy;
 `ocarinaZero/` owns the example's inputs. No legacy generators or generated case is

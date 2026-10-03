@@ -61,7 +61,8 @@ public static class Services
     public static void StartAll(string root)
     {
         foreach(string kind in new[]{"simulate","render"})Start(root,kind,false);
-        Console.WriteLine("Started. Use: ocarina check "+root+"; logs are in "+Paths.Logs(root));
+        Console.WriteLine("Started. Logs are in "+Paths.Logs(root));
+        Progress.Run(root);
     }
     // Stop the renderer first, then the solver. Always attempt both before reporting failure.
     public static void StopAll(string root)
