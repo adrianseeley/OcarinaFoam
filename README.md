@@ -68,6 +68,7 @@ ocarina simulate "$HOME/myCase"
 # Ctrl+C detaches; the solver continues.
 ocarina render "$HOME/myCase"
 # Ctrl+C detaches; the renderer continues.
+ocarina render preview "$HOME/myCase"
 ocarina check "$HOME/myCase"
 ```
 
@@ -77,6 +78,7 @@ ocarina check "$HOME/myCase"
 | `ocarina simulate DIR` | Create its user service if needed, start if stopped, or attach if running. Follow its logs. |
 | `ocarina simulate stop DIR` | Stop solver and MPI children, clear failure state, remove the unit, reload systemd. Keep logs/results. |
 | `ocarina render DIR` | The same lifecycle for the runtime-configured renderer. |
+| `ocarina render preview DIR` | Foreground layout preview at `DIR/previews/layout.png` using the built solid wireframe; consumes no field history and does not write `renders/config.json`. |
 | `ocarina render stop DIR` | Stop renderer workers and remove its unit. Keep logs/results. |
 | `ocarina check DIR` | Show both service states, complete rendered frame count, eligible backlog, held writes and latest time per rank. |
 
@@ -98,13 +100,17 @@ are rejected rather than silently disagreeing with the generated dictionaries.
   `processorN/` fields when parallel, and `postProcessing/` probe time series.
 - `renders/` — `00000001.pressure.png`, velocity-magnitude/density/temperature images,
   and completion records. One countable frame includes all enabled fields.
+- `previews/` — optional non-consuming layout previews (`layout.png`).
 - `logs/` — timestamped build steps and solver runs, plus service logs for attaching.
 
 Rendering consumes old raw field directories after their own frame and the next
 frame finish. It keeps the three newest positive times on every processor and one
 predecessor needed for change-based opacity. Probe histories remain. This is a
 render-and-consume pipeline: copy raw output separately if an experiment needs it
-for other post-processing. Detailed lifetime/recovery rules are in the template guide.
+for other post-processing. The saved recipe in `renders/config.json` freezes as soon
+as normal renderer startup accepts it (before first frame completion), because consumed
+history cannot be recreated with a later layout change. Detailed lifetime/recovery
+rules are in the template guide.
 
 On solver restart the CLI verifies latest-time agreement and mandatory fields on
 every rank. It restores the fixed sponge reference from each rank's initial state.

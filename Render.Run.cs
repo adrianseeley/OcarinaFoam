@@ -16,6 +16,7 @@ public static partial class Renderer
         Directory.CreateDirectory(OutputDirectory);
         string[] processors = FindProcessors();
         Console.WriteLine("Watching " + CaseDirectory + "; keeping " + UntouchedTimes + " newer times.");
+        PrintLayoutSummary();
 
         int enabled = 0;
         for (int f = 0; f < Fields.Length; f++)
@@ -29,10 +30,6 @@ public static partial class Renderer
         {
             throw new InvalidOperationException("Enable a field before running.");
         }
-
-        ComputeGrid(Views.Length + 1, out GridColumns, out GridRows); // +1 reserves tile 0 for the info/legend panel.
-        Console.WriteLine("Composite grid " + GridColumns + "x" + GridRows + " tiles, " + PlotWidth + "x" + PlotHeight + " each -> "
-            + (GridColumns * PlotWidth) + "x" + (GridRows * PlotHeight) + " px.");
 
         // The mesh is static: parse geometry once on startup and reuse the cell
         // centres for every timestep instead of reparsing the ASCII polyMesh.

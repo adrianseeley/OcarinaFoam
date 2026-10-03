@@ -31,8 +31,8 @@
   "inletVelocityMetersPerSecond": 12,
   "ambientPressureHectopascals": 1013.25,
   "initialTemperatureCelsius": 26.85,
-  "deltaTSeconds": 1e-07,
-  "endTimeSeconds": 3.0,
+  "deltaTSeconds":  0.0000001,
+  "endTimeSeconds": 3.0000000,
   "fieldWriteIntervalTimeSteps": 10,
   "probeWriteIntervalTimeSteps": 1,
   "farFieldRelaxationLengthMeters": 0.1,
@@ -57,7 +57,61 @@
     "renderPressure": true,
     "renderVelocityMagnitude": true,
     "renderDensity": true,
-    "renderTemperature": true
+    "renderTemperature": true,
+    "tiles": [
+      [
+        {
+          "name": "Xp",
+          "from": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "Yn",
+          "from": [
+            0,
+            -1,
+            0
+          ]
+        }
+      ],
+      [
+        "legend",
+        {
+          "name": "Zp",
+          "from": [
+            0,
+            0,
+            1
+          ],
+          "up": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      [
+        {
+          "name": "XpYpZp",
+          "from": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "XnYnZp",
+          "from": [
+            -1,
+            -1,
+            1
+          ]
+        }
+      ]
+    ]
   },
   "probes": [
     {
@@ -102,4 +156,3 @@
     }
   ]
 }
-

@@ -41,26 +41,11 @@ public static partial class Renderer
         new Field { Enabled = false, File = "T", Name = "temperature", Unit = "K", DecimalPlaces = 0 }
     };
 
-    // From is relative to the padded SOLID bounding-box half-extents, not the air domain.
-    // Corner directions therefore follow the object aspect ratio. All cameras look at
-    // its centre. View supports From, Up and SizePixels; opacity is computed per field.
-    public static View[] Views = new View[]
-    {
-        new View { Name = "Xp", From = new Vector3(1, 0, 0) },
-        new View { Name = "Xn", From = new Vector3(-1, 0, 0) },
-        new View { Name = "Yp", From = new Vector3(0, 1, 0) },
-        new View { Name = "Yn", From = new Vector3(0, -1, 0) },
-        new View { Name = "Zp", From = new Vector3(0, 0, 1), Up = Vector3.UnitY },
-        new View { Name = "Zn", From = new Vector3(0, 0, -1), Up = Vector3.UnitY },
-        new View { Name = "XpYpZp", From = new Vector3(1, 1, 1) },
-        new View { Name = "XpYpZn", From = new Vector3(1, 1, -1) },
-        new View { Name = "XpYnZp", From = new Vector3(1, -1, 1) },
-        new View { Name = "XpYnZn", From = new Vector3(1, -1, -1) },
-        new View { Name = "XnYpZp", From = new Vector3(-1, 1, 1) },
-        new View { Name = "XnYpZn", From = new Vector3(-1, 1, -1) },
-        new View { Name = "XnYnZp", From = new Vector3(-1, -1, 1) },
-        new View { Name = "XnYnZn", From = new Vector3(-1, -1, -1) }
-    };
+    public static RenderTileDefinition[][] Tiles = Array.Empty<RenderTileDefinition[]>();
+    public static Camera[][] TileCameras = Array.Empty<Camera[]>();
+    public static int CameraTileCount = 0;
+    public static int LegendTileCount = 0;
+    public static string RecipeCompatibilityNote = "";
 
     public const int SelfRendered = 1;
     public const int PredecessorConsumed = 2;

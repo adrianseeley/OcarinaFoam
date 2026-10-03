@@ -10,10 +10,18 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help" or "-h")
             {
-                Console.WriteLine("ocarina build DIR\nocarina simulate [stop] DIR\nocarina render [stop] DIR\nocarina check DIR\nocarina self-test");
+                Console.WriteLine("ocarina build DIR\nocarina simulate [stop] DIR\nocarina render [stop] DIR\nocarina render preview DIR\nocarina check DIR\nocarina self-test");
                 return 0;
             }
             if (args.Length == 1 && args[0] == "self-test") return SelfTest.Run();
+            if (args.Length == 3 && args[0] == "render" && args[1] == "preview")
+            {
+                string previewRoot = Paths.Canonical(args[2]);
+                Config config = Configuration.Built(previewRoot);
+                Renderer.Configure(previewRoot, config, false);
+                Renderer.Preview(previewRoot);
+                return 0;
+            }
             bool stop = args.Length == 3 && args[1] == "stop";
             if (args.Length != 2 && !stop) throw new ArgumentException("Use: ocarina help");
             string command = args[0];
@@ -46,5 +54,3 @@ public static class Program
         }
     }
 }
-
-

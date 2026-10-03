@@ -76,17 +76,55 @@ field output is sparse. That trades visual time resolution, not solver time reso
 | `renderThreads` | Concurrent frame workers; each owns a full point/field working set and a composite bitmap. Start small if RAM is limited. |
 | `pollMilliseconds` | Discovery/idle interval, 2000 ms by default. |
 | `pngCompressionLevel` | 0â€“9, default 6. Compression does not change PNG pixel values. |
-| `plotWidth`, `plotHeight` | Per-tile pixels; 1024Â² gives a 5120Ã—3072 composite with the default 14 views plus legend. |
+| `plotWidth`, `plotHeight` | Per-tile pixels. Composite size is `plotWidth * columns` by `plotHeight * rows` from `renderer.tiles`. |
 | `marginPixels`, `labelFontPixels` | Legend margin and stroke-letter size. Long legend labels shrink to fit. |
 | `backgroundColor`, `labelColor` | Hex colours accepted by Skia. |
 | `pointSizePixels` | Cell-centre marker size in pixels, not cell volume. |
 | `axisTiltDegrees` | Optional camera tilt so aligned rows of cells do not hide each other. |
 | `cameraPaddingFraction` | Padding around the solid's bounds for camera framing. |
 | `renderPressure`, `renderVelocityMagnitude`, `renderDensity`, `renderTemperature` | Enabled field images. At least one is required. |
+| `tiles` | Required row-major 2D tile matrix. Each entry is either the exact string `"legend"` or a camera object. |
 
-Concurrency and polling can change on restart. Once rendering has committed frames,
-other renderer changes are rejected to prevent mixing visual recipes after source
-fields have been consumed. Use a new case for a different recipe.
+Concurrency and polling can change on restart. Other renderer changes are rejected
+after startup accepts the saved recipe in `renders/config.json` (even before the
+first frame finishes), preventing mixed visual recipes after source fields are
+consumed. Use a new case for a different recipe.
+
+`renderer.tiles` fully controls placement. Outer arrays are rows (top to bottom),
+inner arrays are columns (left to right). Cells do not auto-fill: no hidden legend,
+no fixed camera list, and no automatic grid generation.
+
+Camera tile keys:
+
+- `name` (required): tile title only; no filename or preset lookup.
+- `from` (required): nonzero eye-side direction vector in global XYZ.
+- `up` (optional): desired screen-up vector; defaults to +Z except near +Z/-Z views,
+  where +Y is used to avoid a parallel basis.
+- `targetMillimeters` (optional): pan target in model millimetres, defaulting to the
+  solid-bounds centre.
+- `zoom` (optional): orthographic scale multiplier (`1` default, `>1` zooms in).
+
+At least one camera tile is required. Legend-only layouts are rejected. Legends can
+appear in any cell and can repeat.
+
+Example:
+
+```json
+"tiles": [
+  [
+    { "name": "Xp", "from": [1, 0, 0] },
+    { "name": "Yn", "from": [0, -1, 0] }
+  ],
+  [
+    "legend",
+    { "name": "Zp", "from": [0, 0, 1], "up": [0, 1, 0] }
+  ],
+  [
+    { "name": "XpYpZp", "from": [1, 1, 1] },
+    { "name": "XnYnZp", "from": [-1, -1, 1] }
+  ]
+]
+```
 
 The renderer merges the partitions into a static cell-centre cloud. Hue is normalised
 to each field's current minimum/maximum. Opacity is absolute change from the previous
@@ -101,6 +139,11 @@ t's images and its successor's images finish, preserving t for the successor's
 change calculation. Recovery finishes interrupted deletions and skips committed
 frames. `postProcessing/` probe output is retained. Do not delete PNGs, completion
 records or raw times manually while a renderer owns the case.
+
+Run `ocarina render preview DIR` to inspect tile placement, direction, roll, pan,
+zoom and clipping against the built metre-scale `solidBody.stl` before consuming any
+fields. Preview writes `DIR/previews/layout.png` and never reads timestep fields,
+creates completion records, or writes/updates `renders/config.json`.
 
 The three-write holdback is a lag rule, not atomic filesystem completion. All required
 fields must parse through their closing boundary block before a frame can commit.
@@ -175,4 +218,3 @@ This is an experiment setting, not a restriction: all six values stay configurab
 
 ocarina self-test checks exact zero-padding bounds, non-grid-aligned spans, block validity,
 inlet geometry, locationInMesh clearance, probe bounds and flood-fill connectivity.
-

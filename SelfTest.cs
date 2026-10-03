@@ -1,4 +1,6 @@
-﻿// Pure-C# checks of the background domain and inlet/probe handling. No OpenFOAM required.
+﻿using SkiaSharp;
+
+// Pure-C# checks of the background domain and inlet/probe handling. No OpenFOAM required.
 public static class SelfTest
 {
     static int failures;
@@ -7,6 +9,26 @@ public static class SelfTest
     static Config Cfg(Padding p) => new Config { worldPaddingMillimeters = p, backgroundCellSizeMillimeters = 5 };
     static Bounds B(double[] min, double[] max) => new Bounds { Min = min, Max = max };
     static double Span(List<Band> bands) => bands.Sum(b => b.End - b.Start);
+    static RenderConfig RenderCfg(string tilesJson) => new RenderConfig
+    {
+        renderThreads = 1,
+        pollMilliseconds = 1000,
+        pngCompressionLevel = 6,
+        plotWidth = 400,
+        plotHeight = 300,
+        marginPixels = 20,
+        labelFontPixels = 24,
+        backgroundColor = "#000000",
+        labelColor = "#ffffff",
+        pointSizePixels = 3,
+        axisTiltDegrees = 0,
+        cameraPaddingFraction = 0.2,
+        renderPressure = true,
+        renderVelocityMagnitude = false,
+        renderDensity = false,
+        renderTemperature = false,
+        tiles = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement[][]>(tilesJson, Configuration.Json)
+    };
 
     public static int Run()
     {
@@ -61,8 +83,43 @@ public static class SelfTest
         PreflightResult pre = Preflight.Run(solid, inlet, d, c, c.probes, centre, r, r + c.acousticDampingThicknessMillimeters);
         Console.WriteLine(pre.Report);
         Check(!pre.Report.Contains("WARNING"), "all fluid, including chamber and throat, connects to locationInMesh");
+
+        // Renderer tile parsing and camera behaviour.
+        RenderConfig sample = RenderCfg(
+            "[[{\"name\":\"Xp\",\"from\":[1,0,0]},{\"name\":\"Yn\",\"from\":[0,-1,0]}],[\"legend\",{\"name\":\"Zp\",\"from\":[0,0,1],\"up\":[0,1,0]}],[{\"name\":\"XpYpZp\",\"from\":[1,1,1]},{\"name\":\"XnYnZp\",\"from\":[-1,-1,1]}]]");
+        RenderTileDefinition[][] parsed = Renderer.ParseTiles(sample);
+        Check(parsed.Length == 3 && parsed[0].Length == 2 && Renderer.CameraTileCount == 5 && Renderer.LegendTileCount == 1, "renderer tiles parse the 3x2 sample layout");
+        Check(!Throws(() => Renderer.ParseTiles(RenderCfg("[[{\"name\":\"only\",\"from\":[1,0,0]}]]"))), "renderer accepts camera-only layouts");
+        Check(Throws(() => Renderer.ParseTiles(RenderCfg("[[\"legend\"],[\"legend\"]]"))), "renderer rejects legend-only layouts");
+        Check(Throws(() => Renderer.ParseTiles(RenderCfg("[[\"Legend\",{\"name\":\"Xp\",\"from\":[1,0,0]}]]"))), "renderer rejects non-sentinel legend strings");
+        Check(Throws(() => Renderer.ParseTiles(RenderCfg("[[{\"name\":\"bad\",\"from\":[1,0]}]]"))), "renderer rejects malformed vectors");
+        Check(Throws(() => Renderer.ParseTiles(RenderCfg("[[{\"name\":\"bad\",\"from\":[1,0,0],\"unknown\":1}]]"))), "renderer rejects unknown camera keys");
+
+        Renderer.PlotWidth = 300; Renderer.PlotHeight = 220; Renderer.MarginPixels = 20; Renderer.LabelFontPixels = 24;
+        Renderer.ObjectMinimum = new System.Numerics.Vector3(-1, -2, -3);
+        Renderer.ObjectMaximum = new System.Numerics.Vector3(1, 2, 3);
+        Renderer.CameraPaddingFraction = 0.2f;
+        Renderer.AxisTiltDegrees = 0f;
+        SKRect content = Renderer.TileContentRect(0, 0);
+        RenderTileDefinition t1 = new RenderTileDefinition { Name = "a", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 };
+        RenderTileDefinition t2 = new RenderTileDefinition { Name = "b", From = new[] { 10d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 };
+        Camera c1 = Renderer.MakeCamera(t1, content);
+        Camera c2 = Renderer.MakeCamera(t2, content);
+        Check(System.Numerics.Vector3.Distance(c1.TowardEye, c2.TowardEye) < 1e-6f, "camera direction ignores vector magnitude");
+        RenderTileDefinition t3 = new RenderTileDefinition { Name = "target", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 1000d, 0d, 0d }, Zoom = 1 };
+        Check(Math.Abs(Renderer.MakeCamera(t3, content).Centre.X - 1f) < 1e-6f, "targetMillimeters converts to metres once");
+        RenderTileDefinition zoomA = new RenderTileDefinition { Name = "z1", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 };
+        RenderTileDefinition zoomB = new RenderTileDefinition { Name = "z3", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 3 };
+        Check(Math.Abs(Renderer.MakeCamera(zoomB, content).Scale / Renderer.MakeCamera(zoomA, content).Scale - 3f) < 1e-5f, "zoom multiplies orthographic scale");
+        Check(Throws(() => Renderer.MakeCamera(new RenderTileDefinition { Name = "badup", From = new[] { 0d, 0d, 1d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 }, content)), "parallel up vector is rejected");
+
+        RenderTileDefinition[][] defaultsA = Renderer.ResolveTileDefaults(parsed, new[] { 0d, 0d, 0d });
+        RenderTileDefinition[][] defaultsB = Renderer.ResolveTileDefaults(Renderer.ParseTiles(RenderCfg(
+            "[[{\"name\":\"Xp\",\"from\":[1,0,0],\"up\":[0,0,1],\"targetMillimeters\":[0,0,0],\"zoom\":1},{\"name\":\"Yn\",\"from\":[0,-1,0],\"up\":[0,0,1],\"targetMillimeters\":[0,0,0],\"zoom\":1}],[\"legend\",{\"name\":\"Zp\",\"from\":[0,0,1],\"up\":[0,1,0],\"targetMillimeters\":[0,0,0],\"zoom\":1}],[{\"name\":\"XpYpZp\",\"from\":[1,1,1],\"up\":[0,0,1],\"targetMillimeters\":[0,0,0],\"zoom\":1},{\"name\":\"XnYnZp\",\"from\":[-1,-1,1],\"up\":[0,0,1],\"targetMillimeters\":[0,0,0],\"zoom\":1}]]")), new[] { 0d, 0d, 0d });
+        string diff = Renderer.RecipeDifferencePath(Renderer.Recipe(sample, defaultsA), Renderer.Recipe(sample, defaultsB));
+        Check(diff == "", "recipe comparison ignores omitted-vs-explicit camera defaults");
+
         Console.WriteLine(failures == 0 ? "All checks passed." : failures + " check(s) failed.");
         return failures == 0 ? 0 : 1;
     }
 }
-

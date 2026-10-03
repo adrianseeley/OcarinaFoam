@@ -23,28 +23,34 @@ public static partial class Renderer
             IsAntialias = true,
             Style = SKPaintStyle.Fill
         };
-        InfoTile(canvas, font, time, field, cloud.Length, minimum, maximum, 0, 0);
         int[] order = new int[cloud.Length];
         float[] depth = new float[cloud.Length];
-        for (int v = 0; v < Views.Length; v++)
+        for (int row = 0; row < GridRows; row++)
         {
-            View view = Views[v];
-            int tileIndex = v + 1; // Tile 0 is the info/legend panel.
-            float offsetX = (tileIndex % GridColumns) * PlotWidth;
-            float offsetY = (tileIndex / GridColumns) * PlotHeight;
-            Camera camera = MakeCamera(view, offsetX, offsetY);
-            for (int i = 0; i < cloud.Length; i++)
+            for (int column = 0; column < GridColumns; column++)
             {
-                order[i] = i;
-                depth[i] = Vector3.Dot(cloud[i].Position - camera.Centre, camera.TowardEye);
+                float offsetX = column * PlotWidth;
+                float offsetY = row * PlotHeight;
+                RenderTileDefinition tile = Tiles[row][column];
+                if (tile.Legend)
+                {
+                    InfoTile(canvas, font, time, field, cloud.Length, minimum, maximum, offsetX, offsetY);
+                    continue;
+                }
+                Camera camera = TileCameras[row][column];
+                for (int i = 0; i < cloud.Length; i++)
+                {
+                    order[i] = i;
+                    depth[i] = Vector3.Dot(cloud[i].Position - camera.Centre, camera.TowardEye);
+                }
+                Array.Sort(depth, order); // Far to near across ALL processors.
+                RenderTile(canvas, paint, tile, camera, cloud, alpha, order, font, offsetX, offsetY);
+                Collect();
             }
-            Array.Sort(depth, order); // Far to near across ALL processors.
-            RenderTile(canvas, paint, view, camera, cloud, alpha, order, font, offsetX, offsetY);
-            Collect();
         }
         DrawGrid(canvas, compositeWidth, compositeHeight);
         string stem = Path.Combine(OutputDirectory, frame.ToString("D8", CultureInfo.InvariantCulture) + "." + field.Name);
         SavePng(bitmap, stem + ".png");
-        Console.WriteLine("  " + field.Name + " composite saved (" + Views.Length + " views, " + compositeWidth + "x" + compositeHeight + ")");
+        Console.WriteLine("  " + field.Name + " composite saved (" + CameraTileCount + " cameras, " + LegendTileCount + " legends, " + compositeWidth + "x" + compositeHeight + ")");
     }
 }

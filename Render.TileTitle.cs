@@ -8,9 +8,15 @@ using SkiaSharp;
 public static partial class Renderer
 {
     // Label the viewing direction; positive axis names describe the eye side.
-    public static void TileTitle(SKCanvas canvas, float font, View view, float offsetX, float offsetY)
+    public static void TileTitle(SKCanvas canvas, float font, string title, float offsetX, float offsetY)
     {
+        float textWidth = PlotWidth - 2 * MarginPixels;
+        SKRect header = new SKRect(offsetX + MarginPixels, offsetY + MarginPixels, offsetX + PlotWidth - MarginPixels, offsetY + 2 * MarginPixels + LabelFontPixels);
+        float baseline = offsetY + MarginPixels + LabelFontPixels;
         using SKPaint paint = new SKPaint { Color = LabelColor, IsAntialias = true };
-        LineFont.Draw(canvas, view.Name, offsetX + PlotWidth * 0.5f, offsetY + LabelFontPixels + 12, SKTextAlign.Center, font, paint);
+        canvas.Save();
+        canvas.ClipRect(header);
+        LineFont.Draw(canvas, title, offsetX + PlotWidth * 0.5f, baseline, SKTextAlign.Center, font, paint, textWidth);
+        canvas.Restore();
     }
 }

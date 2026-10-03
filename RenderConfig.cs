@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 public class RenderConfig
 {
     public int renderThreads = 6;
@@ -16,4 +18,5 @@ public class RenderConfig
     public bool renderVelocityMagnitude = true;
     public bool renderDensity = true;
     public bool renderTemperature = true;
+    public JsonElement[][] tiles;
 }

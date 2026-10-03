@@ -46,6 +46,7 @@ public static class Configuration
         if (rconf.pngCompressionLevel < 0 || rconf.pngCompressionLevel > 9) throw new Exception("PNG compression must be 0..9.");
         if (!rconf.renderPressure && !rconf.renderVelocityMagnitude && !rconf.renderDensity && !rconf.renderTemperature) throw new Exception("Enable at least one render field.");
         if (!SkiaSharp.SKColor.TryParse(rconf.backgroundColor, out _) || !SkiaSharp.SKColor.TryParse(rconf.labelColor, out _)) throw new Exception("Invalid renderer color.");
+        Renderer.ParseTiles(rconf);
         double lastFrame = Math.Ceiling(c.endTimeSeconds / (c.deltaTSeconds * c.fieldWriteIntervalTimeSteps)) + 3;
         if (!double.IsFinite(lastFrame) || lastFrame > int.MaxValue) throw new Exception("Too many output frames.");
         return c;

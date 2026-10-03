@@ -3,5 +3,6 @@ obj/
 **/foam/
 **/.foam-build-*/
 **/renders/
+**/previews/
 **/logs/
 **/.*.lock

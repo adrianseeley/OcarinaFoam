@@ -16,21 +16,62 @@ public static partial class Renderer
         ObjectMinimum=new Vector3((float)(bounds.Min[0]*.001),(float)(bounds.Min[1]*.001),(float)(bounds.Min[2]*.001));
         ObjectMaximum=new Vector3((float)(bounds.Max[0]*.001),(float)(bounds.Max[1]*.001),(float)(bounds.Max[2]*.001));
         Fields[0].Enabled=r.renderPressure;Fields[1].Enabled=r.renderVelocityMagnitude;Fields[2].Enabled=r.renderDensity;Fields[3].Enabled=r.renderTemperature;
-        foreach(View view in Views)view.SizePixels=PointSizePixels;
+        RecipeCompatibilityNote = "";
+
+        RenderTileDefinition[][] parsed = ParseTiles(r);
+        double[] defaultTarget = new[] { (bounds.Min[0] + bounds.Max[0]) * .5, (bounds.Min[1] + bounds.Max[1]) * .5, (bounds.Min[2] + bounds.Max[2]) * .5 };
+        Tiles = ResolveTileDefaults(parsed, defaultTarget);
+        TileCameras = new Camera[GridRows][];
+        for (int row = 0; row < GridRows; row++)
+        {
+            TileCameras[row] = new Camera[GridColumns];
+            for (int column = 0; column < GridColumns; column++)
+            {
+                if (Tiles[row][column].Legend) continue;
+                float offsetX = column * PlotWidth;
+                float offsetY = row * PlotHeight;
+                try
+                {
+                    TileCameras[row][column] = MakeCamera(Tiles[row][column], TileContentRect(offsetX, offsetY));
+                }
+                catch (Exception error)
+                {
+                    throw new Exception($"renderer.tiles[{row}][{column}] camera invalid: {error.Message}");
+                }
+            }
+        }
+
+        RenderRecipe candidate = Recipe(r, Tiles);
+        string stamp=Path.Combine(OutputDirectory,"config.json");
+        bool hasDone = Directory.Exists(Path.Combine(OutputDirectory, ".done")) && Directory.EnumerateFiles(Path.Combine(OutputDirectory, ".done"), "*.json").Any();
+        bool hasPng = Directory.Exists(OutputDirectory) && Directory.EnumerateFiles(OutputDirectory, "*.png", SearchOption.TopDirectoryOnly).Any();
+        bool hasOutputs = hasDone || hasPng;
+        if (File.Exists(stamp))
+        {
+            RenderRecipe existing = JsonSerializer.Deserialize<RenderRecipe>(File.ReadAllText(stamp), Configuration.Json);
+            if (existing == null) throw new Exception("Saved render recipe is empty: renders/config.json");
+            existing.renderThreads = candidate.renderThreads;
+            existing.pollMilliseconds = candidate.pollMilliseconds;
+            string path = RecipeDifferencePath(existing, candidate);
+            if (path.Length > 0)
+            {
+                string message = "Render recipe differs at " + path + ".\nExisting output belongs to the saved recipe in renders/config.json.\nEarlier raw fields may already have been consumed; use a new case for this layout.";
+                if (initialize) throw new Exception(message);
+                RecipeCompatibilityNote = message;
+            }
+        }
+        else if (hasOutputs)
+        {
+            string message = "renders/config.json is missing while frame output exists. Existing render output cannot be adopted without the saved recipe.";
+            if (initialize) throw new Exception(message);
+            RecipeCompatibilityNote = message;
+        }
+
         if(initialize)
         {
-            Directory.CreateDirectory(OutputDirectory);Directory.CreateDirectory(Path.Combine(OutputDirectory,".done"));
-            string signature=JsonSerializer.Serialize(r,Configuration.Json);
-            string stamp=Path.Combine(OutputDirectory,"config.json");
-            if(File.Exists(stamp)&&File.ReadAllText(stamp)!=signature)
-            {
-                var previous=JsonSerializer.Deserialize<RenderConfig>(File.ReadAllText(stamp),Configuration.Json);
-                // Scheduling controls can change without making existing images inconsistent.
-                previous.renderThreads=r.renderThreads;previous.pollMilliseconds=r.pollMilliseconds;
-                if(JsonSerializer.Serialize(previous,Configuration.Json)!=signature)
-                    throw new Exception("Render appearance/fields changed after rendering began. Raw data is consumed; use a fresh case for a different render recipe.");
-            }
-            Paths.Atomic(stamp,signature);
+            Directory.CreateDirectory(OutputDirectory);
+            Directory.CreateDirectory(Path.Combine(OutputDirectory,".done"));
+            if (!File.Exists(stamp) && !hasOutputs) Paths.Atomic(stamp,JsonSerializer.Serialize(candidate,Configuration.Json));
         }
     }
 }
