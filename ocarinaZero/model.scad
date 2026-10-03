@@ -34,8 +34,8 @@ module throatPositive() {
 }
 
 module throatSkin() {
-    translate([-throatWidth / 2 - skinThickness, 0, -throatHeight / 2 - skinThickness])
-    cube([throatWidth + skinThickness * 2, throatLength - 1, throatHeight + skinThickness * 2]);
+    translate([-(pressureChamberWidth + skinThickness * 2) / 2, 0, pressureChamberZ - skinThickness])
+    cube([pressureChamberWidth + skinThickness * 2, throatLength - 1, pressureChamberHeight + skinThickness * 2]);
 }
 
 module voicingHolePositive() {
@@ -93,5 +93,5 @@ module spawnPlane() {
 }
 
 
-solidBody();
+*solidBody();
 spawnPlane();
