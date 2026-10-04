@@ -2,7 +2,7 @@
 public class AudioConfig
 {
     public int sampleRateHz = 96000;
-    public double highPassHz = 0;
+    public double highPassHz = 2;
     public double fadeMilliseconds = 0;
     public double peakTargetDbfs = -1;
     // false: every probe is normalised to the target alone; true: one gain keeps the probes' relative levels.
