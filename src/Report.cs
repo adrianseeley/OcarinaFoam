@@ -5,9 +5,11 @@ using System.Text;
 // ocarina report DIR: stop services, rebuild audio, render videos/wavs, write report.html and zip the work product.
 public static class Report
 {
-    const int VideoFps = 60;
+    const int VideoFps = 10;
     const int VideoLongSide = 1024;
-    static readonly (int Factor, int Rate)[] Slowdowns = { (10, 16000), (100, 16000), (1000, 8000) };
+    static readonly int[] Slowdowns = { 1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 1000 };
+    // Slowing by N moves content down to (rate / 2N); keep the output rate high enough to hold it, but playable.
+    static int OutputRate(int sourceRate, int factor) => factor >= 100 ? 8000 : Math.Max(16000, sourceRate / factor);
 
     public static void Run(string root)
     {
@@ -42,13 +44,15 @@ public static class Report
         foreach (string name in probes)
         {
             string source = Path.Combine(root, "audio", name + ".wav");
-            File.Copy(source, Path.Combine(dir, name + ".wav"));
-            foreach (var (factor, rate) in Slowdowns)
+            foreach (int factor in Slowdowns)
             {
+                string target = Path.Combine(dir, $"{name}_x{factor}.wav");
+                if (factor == 1) { File.Copy(source, target); continue; }
+                int rate = OutputRate(sourceRate, factor);
                 Console.WriteLine($"wav {name} {factor}x slower");
                 // Relabelling the sample rate slows playback (and drops pitch); resample to a rate players accept.
                 Ffmpeg(root, $"report-wav-{name}-x{factor}.log", "-i", source, "-af", $"asetrate={sourceRate / (double)factor:R},aresample={rate}",
-                    "-c:a", "pcm_s16le", Path.Combine(dir, $"{name}_x{factor}.wav"));
+                    "-c:a", "pcm_s16le", target);
             }
         }
     }
@@ -68,7 +72,7 @@ public static class Report
             Console.WriteLine("video " + name);
             string scale = $"scale='if(gte(iw,ih),{VideoLongSide},-2)':'if(gte(iw,ih),-2,{VideoLongSide})':flags=lanczos";
             Ffmpeg(root, $"report-video-{name}.log", "-framerate", VideoFps.ToString(), "-pattern_type", "glob", "-i", Path.Combine(field, "*.png"),
-                "-vf", scale, "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart", Path.Combine(dir, name + ".mp4"));
+                "-vf", scale, "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-movflags", "+faststart", Path.Combine(dir, name + ".mp4"));
             made.Add(name);
         }
         return made.ToArray();
@@ -108,9 +112,9 @@ public static class Report
         if (probes.Length == 0) h.Append("<p>None.</p>\n");
         foreach (string p in probes)
         {
-            h.Append("<h3>").Append(E(p)).Append("</h3>\n<p>Original</p><audio controls preload=\"none\" src=\"").Append(Url("wav/" + p + ".wav")).Append("\"></audio>\n");
-            foreach (var (factor, _) in Slowdowns)
-                h.Append("<p>").Append(factor).Append("x slower (pitch drops; distorted on purpose)</p><audio controls preload=\"none\" src=\"")
+            h.Append("<h3>").Append(E(p)).Append("</h3>\n\n");
+            foreach (int factor in Slowdowns)
+                h.Append("<p>").Append(factor == 1 ? "1x (original)" : factor + "x slower (pitch drops; distorted on purpose)").Append("</p><audio controls preload=\"none\" src=\"")
                  .Append(Url($"wav/{p}_x{factor}.wav")).Append("\"></audio>\n");
             Img($"audio/{p}/plots/waveform.png");
             Img($"audio/{p}/plots/spectrum.png");

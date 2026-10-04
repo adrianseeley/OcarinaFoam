@@ -7,3 +7,6 @@ obj/
 **/audio/
 **/logs/
 **/.*.lock
+videos/
+*.zip
+*.html
