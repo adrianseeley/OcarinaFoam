@@ -3,7 +3,7 @@ using SkiaSharp;
 
 public class AudioPlotResult
 {
-    public string SpectrumPath, PunchPath;
+    public string SpectrumPath, PunchPath, WaveformPath;
     public NoteSpectrum Notes;
     public double BinHz;
     public string Warning;
@@ -73,6 +73,8 @@ public static class AudioPlots
         string context = $"PROCESSED AUDIO: RESAMPLED TO {N(fsOut, "F0")} HZ, HIGH-PASS {N(a.highPassHz)} HZ, FADE {N(a.fadeMilliseconds)} MS, GAIN APPLIED" +
             (fsIn / 2 < fsOut / 2 ? $", NATIVE NYQUIST {N(fsIn / 2, "F0")} HZ" : "");
         string meta = $"N={notes.SampleCount} SAMPLES, T={N(notes.Duration)} S, 1/T={N(1 / Math.Max(notes.Duration, 1e-300))} HZ, FFT BIN {N(binHz)} HZ, HANN, A4 = {N(p.concertAHz)} HZ";
+        result.WaveformPath = Path.Combine(dir, "waveform.png");
+        Render(result.WaveformPath, name, p.spectrumWidth, p.spectrumHeight / 2, c => DrawWaveform(c, p, name, samples, fsOut, p.spectrumWidth, p.spectrumHeight / 2, context));
         if (notes.Unresolved > 0) result.Warning = $"SHORT RECORD: ADJACENT NOTES MAY NOT BE RESOLVED ({notes.Unresolved} OF {notes.ValidCount} NOTES CLOSER THAN 2/T)";
         Render(result.SpectrumPath, name, p.spectrumWidth, p.spectrumHeight, c => DrawSpectrum(c, p, name, notes, fftDb, binHz, meta, context, result.Warning));
         Render(result.PunchPath, name, p.punchWidth, p.punchHeight, c => DrawPunch(c, p, name, notes, meta, context, result.Warning));
@@ -88,6 +90,56 @@ public static class AudioPlots
             Renderer.SavePng(bitmap, path, PngLevel);
         }
         catch (Exception e) { throw new Exception($"Could not write plot for probe {probe}: {path}", e); }
+    }
+
+    // Per-pixel-column min/max envelope of the processed audio against time, full scale = +/-1.
+    static void DrawWaveform(SKCanvas canvas, AudioPlotConfig p, string name, double[] x, double fs, int width, int height, string context)
+    {
+        float f = p.labelFontPixels, left = 7 * f, right = 3 * f, top = 4.5f * f, bottom = 4 * f;
+        float plotW = width - left - right, plotH = height - top - bottom;
+        double duration = x.Length / fs;
+        using var paint = new SKPaint { Color = Grid, StrokeWidth = 1, IsAntialias = false };
+        foreach (double level in new[] { -1, -0.5, 0, 0.5, 1 })
+        {
+            float y = top + plotH * (float)(1 - level) / 2;
+            paint.Color = level == 0 ? OctaveLine : Grid;
+            canvas.DrawLine(left, y, left + plotW, y, paint);
+            Text(canvas, N(level, "0.0"), left - 0.5f * f, y + 0.35f * f, SKTextAlign.Right, f, Dim);
+        }
+        int ticks = 10;
+        for (int t = 0; t <= ticks; t++)
+        {
+            float px = left + plotW * t / ticks;
+            paint.Color = Grid; canvas.DrawLine(px, top, px, top + plotH, paint);
+            Text(canvas, N(duration * t / ticks, "0.000"), px, top + plotH + 1.6f * f, SKTextAlign.Center, f, Dim);
+        }
+        paint.Color = Line;
+        int columns = Math.Max(1, (int)plotW);
+        if (x.Length > 1 && x.Length < 2 * columns)
+        {
+            // Fewer samples than pixels: join them rather than leave isolated dots.
+            using var path = new SKPath();
+            for (int i = 0; i < x.Length; i++)
+            {
+                float px = left + plotW * i / (x.Length - 1), py = top + plotH * (float)(1 - Math.Clamp(x[i], -1, 1)) / 2;
+                if (i == 0) path.MoveTo(px, py); else path.LineTo(px, py);
+            }
+            paint.Style = SKPaintStyle.Stroke; paint.IsAntialias = true;
+            canvas.DrawPath(path, paint);
+            columns = 0;
+        }
+        for (int c = 0; c < columns && x.Length > 0; c++)
+        {
+            int a = (int)((long)x.Length * c / columns), b = Math.Max(a + 1, (int)((long)x.Length * (c + 1) / columns));
+            double lo = double.MaxValue, hi = double.MinValue;
+            for (int i = a; i < b && i < x.Length; i++) { if (x[i] < lo) lo = x[i]; if (x[i] > hi) hi = x[i]; }
+            if (lo > hi) continue;
+            float y1 = top + plotH * (float)(1 - Math.Clamp(hi, -1, 1)) / 2, y2 = top + plotH * (float)(1 - Math.Clamp(lo, -1, 1)) / 2;
+            canvas.DrawLine(left + c + 0.5f, y1, left + c + 0.5f, Math.Max(y2, y1 + 1), paint);
+        }
+        Text(canvas, name.ToUpperInvariant() + " WAVEFORM", left, 1.8f * f, SKTextAlign.Left, f * 1.2f, Ink);
+        Text(canvas, "TIME (S)", left + plotW / 2, height - 0.5f * f, SKTextAlign.Center, f, Dim);
+        Text(canvas, context, left, 3.5f * f, SKTextAlign.Left, f * 0.7f, Dim, plotW);
     }
 
     static void DrawSpectrum(SKCanvas canvas, AudioPlotConfig p, string name, NoteSpectrum r, double[] db, double binHz, string meta, string context, string warning)

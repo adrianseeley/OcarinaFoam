@@ -38,7 +38,7 @@ apt-get update
 # git obtains source updates. systemd and its PAM integration provide the user manager;
 # dbus-user-session provides the user bus used by systemctl --user.
 # No Node, fonts, GUI, ParaView, tmux, or alternative process supervisor is required.
-apt-get install -y openfoam2606-default openmpi-bin dotnet-sdk-10.0 git systemd libpam-systemd dbus-user-session
+apt-get install -y openfoam2606-default openmpi-bin ffmpeg dotnet-sdk-10.0 git systemd libpam-systemd dbus-user-session
 
 # Keep this user's manager alive after logout. Units are created on demand by the
 # CLI, not enabled for boot: an operator explicitly starts each simulation/render.

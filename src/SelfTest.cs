@@ -183,6 +183,7 @@ public static class SelfTest
                 double[] db = AudioDsp.Spectrum(tone, fs, out double b2);
                 AudioPlotResult pr = AudioPlots.Make("test_probe", tone, fs, 1e7, db, b2, au, plotDir);
                 Check(new FileInfo(pr.SpectrumPath).Length > 1000 && new FileInfo(pr.PunchPath).Length > 1000, "spectrum.png and punch.png are written");
+                Check(new FileInfo(pr.WaveformPath).Length > 1000, "waveform.png is written");
                 AudioPlots.Make("low_rate", tone, fs, 8000, db, b2, au, plotDir);
                 AudioPlots.Make("quiet", new double[4800], fs, 1e7, AudioDsp.Spectrum(new double[4800], fs, out double b3), b3, au, plotDir);
             }
