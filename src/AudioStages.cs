@@ -121,7 +121,7 @@ public static class AudioDsp
         return db;
     }
 
-    static void Fft(double[] re, double[] im)
+    public static void Fft(double[] re, double[] im)
     {
         int n = re.Length;
         for (int i = 1, j = 0; i < n; i++)

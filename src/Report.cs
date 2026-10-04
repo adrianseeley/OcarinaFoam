@@ -41,7 +41,7 @@ public static class Report
         double total = rc.slowdowns.Where(n => n > 1).Sum(n => ReportMath.SlowedBytes(seconds, ReportMath.SlowedRate(au, rc, n), n)) * probes.Length;
         Console.WriteLine($"slowed WAVs: about {total / 1e9:F1} GB (before FLAC in the MKVs); trim report.slowdowns to reduce.");
         var jobs = (from name in probes from factor in rc.slowdowns select (name, factor)).ToList();
-        // ffmpeg's resampler and rubberband are single-threaded, so run several at once.
+        // ffmpeg's resampler and the phase vocoder are single-threaded, so run several at once.
         Parallel.ForEach(jobs, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) }, job =>
         {
             (string name, int factor) = job;
@@ -49,11 +49,14 @@ public static class Report
             string target = Path.Combine(dir, $"{name}_x{factor}.wav");
             if (factor == 1) { File.Copy(source, target); return; }
             Console.WriteLine($"wav {name} {factor}x slower");
-            Ffmpeg(root, $"report-wav-{name}-x{factor}.log", "-i", source, "-af", SlowFilter(au, rc, factor), "-c:a", "pcm_s16le", "-rf64", "auto", target);
+            string intermediate = Path.Combine(dir, $".{name}_x{factor}.f32.wav");
+            Ffmpeg(root, $"report-wav-{name}-x{factor}.log", "-i", source, "-af", SlowFilter(au, rc, factor), "-c:a", "pcm_f32le", "-rf64", "auto", intermediate);
+            FrequencyScale.Finish(intermediate, target, rc.slowedAudioRescale, au.peakTargetDbfs);
+            File.Delete(intermediate);
         });
     }
 
-    // slow by N (pitch drops N times) -> shift every frequency up by shiftHz -> multiply every frequency by rescale, duration unchanged.
+    // ffmpeg part: slow by N, resample to the output rate, shift every frequency up by shiftHz. The rescale multiplier is applied afterwards by FrequencyScale.
     static string SlowFilter(AudioConfig au, ReportConfig rc, int factor)
     {
         var chain = new List<string>();
@@ -61,7 +64,6 @@ public static class Report
         chain.Add($"asetrate={ReportMath.Relabelled(au.sampleRateHz, factor)}");
         chain.Add($"aresample={ReportMath.SlowedRate(au, rc, factor)}");
         if (rc.slowedAudioShiftHz > 0) chain.Add("afreqshift=shift=" + rc.slowedAudioShiftHz.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
-        if (rc.slowedAudioRescale != 1) chain.Add("rubberband=pitch=" + rc.slowedAudioRescale.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
         return string.Join(",", chain);
     }
 

@@ -43,6 +43,17 @@ public static class SelfTest
         }
         Check(c.report.slowdowns.Contains(100000) && c.report.slowedAudioShiftHz == 200 && c.report.slowedAudioRescale == 2, "example report config loads");
         Check(ReportMath.Intermediate(96000, 100000) == 2_400_000 && ReportMath.Relabelled(96000, 100000) == 24 && ReportMath.Intermediate(96000, 3) == 96000, "slowdown ratios are exact integers");
+        {
+            double Peak(double[] x, double fs) { double[] d = AudioDsp.Spectrum(x, fs, out double b); int t = 1; for (int k = 1; k < d.Length; k++) if (d[k] > d[t]) t = k; return t * b; }
+            double Centre(double[] x) { double n = 0, e = 0; for (int i = 0; i < x.Length; i++) { n += i * x[i] * x[i]; e += x[i] * x[i]; } return n / e; }
+            double[] Burst(int len, double fs, double hz, int a, int b) => Enumerable.Range(0, len).Select(i => i < a || i >= b ? 0 : Math.Sin(2 * Math.PI * hz * i / fs) * Math.Sin(Math.PI * (i - a) / (b - a))).ToArray();
+            double[] longTone = Burst(16000, 8000, 100, 5000, 9000), scaled = FrequencyScale.Scale(longTone, 2);
+            Check(scaled.Length == longTone.Length && Math.Abs(Peak(scaled, 8000) - 200) < 4, "frequency scale x2 moves 100 Hz to 200 Hz and keeps length");
+            Check(Math.Abs(Centre(scaled) - Centre(longTone)) < 200, "frequency scale keeps event timing");
+            double[] shortTone = Burst(3157, 106481, 1200, 300, 2800), shortScaled = FrequencyScale.Scale(shortTone, 2);
+            Check(shortScaled.Length == 3157 && Math.Abs(Peak(shortScaled, 106481) - 2400) < 300 && AudioDsp.Peak(shortScaled) > 0.2, "frequency scale works on a 30 ms record");
+            Check(Math.Abs(Peak(FrequencyScale.Scale(longTone, 0.5), 8000) - 50) < 4, "frequency scale x0.5 lowers pitch");
+        }
         Check(ReportMath.SlowedRate(c.audio, c.report, 1000) == 8000 && ReportMath.SlowedRate(c.audio, c.report, 2) > 100000, "slowed rate holds shifted and rescaled content");
         Facet[] solid = Geometry.Read(Path.Combine(dir, "solidBody.stl"));
         Facet[] inlet = Geometry.Inlet(Geometry.Read(Path.Combine(dir, "spawnPlane.stl")));

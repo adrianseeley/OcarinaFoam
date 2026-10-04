@@ -15,6 +15,6 @@ public static class ReportMath
         return (int)Math.Max(r.slowedAudioMinimumSampleRateHz, Math.Ceiling(2 * highest * 1.1));
     }
 
-    // 16-bit mono bytes of one slowed probe track.
-    public static double SlowedBytes(double seconds, int rate, int factor) => seconds * factor * rate * 2;
+    // 24-bit mono bytes of one slowed probe track.
+    public static double SlowedBytes(double seconds, int rate, int factor) => seconds * factor * rate * 3;
 }
