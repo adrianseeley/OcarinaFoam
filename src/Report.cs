@@ -5,12 +5,6 @@ using System.Text;
 // ocarina report DIR: stop services, rebuild audio, render videos/wavs, write report.html and zip the work product.
 public static class Report
 {
-    const int PresentedFps = 30;
-    const int VideoLongSide = 1024;
-    static readonly int[] Slowdowns = { 1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 1000 };
-    // Slowing by N moves content down to (rate / 2N); keep the output rate high enough to hold it, but playable.
-    static int OutputRate(int sourceRate, int factor) => factor >= 100 ? 8000 : Math.Max(16000, sourceRate / factor);
-
     public static void Run(string root)
     {
         if (Commands.Run("ffmpeg", root, new[] { "-version" }, check: false).ExitCode != 0) throw new Exception("ffmpeg is required: sudo apt-get install ffmpeg");
@@ -23,38 +17,52 @@ public static class Report
         if (hasAudio) Audio.Run(root); else Console.WriteLine("WARNING no probe output; skipping audio.");
 
         string[] probes = hasAudio ? config.probes.Select(p => p.name).ToArray() : Array.Empty<string>();
-        BuildWavs(root, probes, config.audio.sampleRateHz);
+        BuildWavs(root, probes, config);
         string[] fields = BuildVideos(root, config, probes);
         string html = Path.Combine(root, "report.html");
-        File.WriteAllText(html, Html(root, probes, fields), new UTF8Encoding(false));
+        File.WriteAllText(html, Html(root, probes, fields, config.report), new UTF8Encoding(false));
         Console.WriteLine("wrote " + html);
         string zip = Zip(root);
         Console.WriteLine("wrote " + zip);
     }
 
     static void Ffmpeg(string root, string log, params string[] args) =>
-        Commands.Run("ffmpeg", root, new[] { "-hide_banner", "-nostdin", "-y" }.Concat(args).ToArray(), Path.Combine(Paths.Logs(root), log));
+        Commands.Run("ffmpeg", root, new[] { "-hide_banner", "-nostdin", "-nostats", "-loglevel", "warning", "-y" }.Concat(args).ToArray(), Path.Combine(Paths.Logs(root), log));
 
-    static void BuildWavs(string root, string[] probes, int sourceRate)
+    static void BuildWavs(string root, string[] probes, Config config)
     {
         string dir = Path.Combine(root, "wav");
         if (Directory.Exists(dir)) Directory.Delete(dir, true);
         if (probes.Length == 0) return;
         Directory.CreateDirectory(dir);
-        foreach (string name in probes)
+        AudioConfig au = config.audio; ReportConfig rc = config.report;
+        string first = Path.Combine(root, "audio", probes[0] + ".wav");
+        double seconds = (new FileInfo(first).Length - 44) / 3.0 / au.sampleRateHz;
+        double total = rc.slowdowns.Where(n => n > 1).Sum(n => ReportMath.SlowedBytes(seconds, ReportMath.SlowedRate(au, rc, n), n)) * probes.Length;
+        Console.WriteLine($"slowed WAVs: about {total / 1e9:F1} GB (before FLAC in the MKVs); trim report.slowdowns to reduce.");
+        var jobs = (from name in probes from factor in rc.slowdowns select (name, factor)).ToList();
+        // ffmpeg's resampler and rubberband are single-threaded, so run several at once.
+        Parallel.ForEach(jobs, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) }, job =>
         {
+            (string name, int factor) = job;
             string source = Path.Combine(root, "audio", name + ".wav");
-            foreach (int factor in Slowdowns)
-            {
-                string target = Path.Combine(dir, $"{name}_x{factor}.wav");
-                if (factor == 1) { File.Copy(source, target); continue; }
-                int rate = OutputRate(sourceRate, factor);
-                Console.WriteLine($"wav {name} {factor}x slower");
-                // Relabelling the sample rate slows playback (and drops pitch); resample to a rate players accept.
-                Ffmpeg(root, $"report-wav-{name}-x{factor}.log", "-i", source, "-af", $"asetrate={sourceRate / (double)factor:R},aresample={rate}",
-                    "-c:a", "pcm_s16le", target);
-            }
-        }
+            string target = Path.Combine(dir, $"{name}_x{factor}.wav");
+            if (factor == 1) { File.Copy(source, target); return; }
+            Console.WriteLine($"wav {name} {factor}x slower");
+            Ffmpeg(root, $"report-wav-{name}-x{factor}.log", "-i", source, "-af", SlowFilter(au, rc, factor), "-c:a", "pcm_s16le", "-rf64", "auto", target);
+        });
+    }
+
+    // slow by N (pitch drops N times) -> shift every frequency up by shiftHz -> multiply every frequency by rescale, duration unchanged.
+    static string SlowFilter(AudioConfig au, ReportConfig rc, int factor)
+    {
+        var chain = new List<string>();
+        if (ReportMath.Intermediate(au.sampleRateHz, factor) != au.sampleRateHz) chain.Add($"aresample={ReportMath.Intermediate(au.sampleRateHz, factor)}");
+        chain.Add($"asetrate={ReportMath.Relabelled(au.sampleRateHz, factor)}");
+        chain.Add($"aresample={ReportMath.SlowedRate(au, rc, factor)}");
+        if (rc.slowedAudioShiftHz > 0) chain.Add("afreqshift=shift=" + rc.slowedAudioShiftHz.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+        if (rc.slowedAudioRescale != 1) chain.Add("rubberband=pitch=" + rc.slowedAudioRescale.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+        return string.Join(",", chain);
     }
 
     // One MKV per slowdown: a titled video track per field and a titled audio track per probe, all on the same slowed timeline.
@@ -83,16 +91,17 @@ public static class Report
         Directory.CreateDirectory(temporary);
         try
         {
+            ReportConfig rc = config.report; int fps = rc.framesPerSecond;
             double interval = config.fieldWriteIntervalTimeSteps * config.deltaTSeconds;
             double span = frames.Count == 0 ? 0 : (frames.Max(f => f.Index[^1]) + 1) * interval;
-            foreach (int factor in Slowdowns)
+            foreach (int factor in config.report.slowdowns)
             {
                 Console.WriteLine($"video {factor}x slower");
-                var args = new List<string> { "-hide_banner", "-nostdin", "-y" };
+                var args = new List<string> { "-hide_banner", "-nostdin", "-nostats", "-loglevel", "warning", "-y" };
                 for (int v = 0; v < frames.Count; v++)
                 {
                     string list = Path.Combine(temporary, $"x{factor}-{v}.txt");
-                    WriteList(list, frames[v].Files, frames[v].Index, interval, factor, span);
+                    WriteList(list, frames[v].Files, frames[v].Index, interval, factor, span, fps);
                     args.AddRange(new[] { "-f", "concat", "-safe", "0", "-i", list });
                 }
                 foreach (string p in probes) args.AddRange(new[] { "-i", Path.Combine(root, "wav", $"{p}_x{factor}.wav") });
@@ -100,9 +109,9 @@ public static class Report
                 for (int a = 0; a < probes.Length; a++) args.AddRange(new[] { "-map", $"{frames.Count + a}:a" });
                 for (int v = 0; v < frames.Count; v++) args.AddRange(new[] { $"-metadata:s:v:{v}", "title=" + frames[v].Name });
                 for (int a = 0; a < probes.Length; a++) args.AddRange(new[] { $"-metadata:s:a:{a}", "title=" + probes[a] });
-                string scale = $"scale='if(gte(iw,ih),{VideoLongSide},-2)':'if(gte(iw,ih),-2,{VideoLongSide})':flags=lanczos,format=yuv420p";
+                string scale = $"scale='if(gte(iw,ih),{rc.videoLongSidePixels},-2)':'if(gte(iw,ih),-2,{rc.videoLongSidePixels})':flags=lanczos,format=yuv420p";
                 if (frames.Count > 0)
-                    args.AddRange(new[] { "-vf", scale, "-r", PresentedFps.ToString(), "-fps_mode", "cfr", "-c:v", "libx264", "-preset", "medium", "-crf", "16" });
+                    args.AddRange(new[] { "-vf", scale, "-fps_mode", "passthrough", "-c:v", "libx264", "-preset", "medium", "-crf", rc.videoCrf.ToString() });
                 if (probes.Length > 0) args.AddRange(new[] { "-c:a", "flac" });
                 args.AddRange(new[] { "-metadata", $"title={Path.GetFileName(root)} {factor}x slower", Path.Combine(dir, $"x{factor}.mkv") });
                 Ffmpeg(root, $"report-video-x{factor}.log", args.ToArray());
@@ -112,22 +121,23 @@ public static class Report
         return frames.Select(f => f.Name).ToArray();
     }
 
-    // Concat list of (frame, duration) runs covering factor * span seconds at exactly PresentedFps ticks per second.
-    static void WriteList(string path, string[] files, int[] index, double interval, int factor, double span)
+    // Concat list of (frame, duration) runs covering factor * span seconds on a grid of fps ticks per second.
+    // Held frames are one long-lived frame rather than many duplicates, which keeps very large slowdowns encodable.
+    static void WriteList(string path, string[] files, int[] index, double interval, int factor, double span, int fps)
     {
-        long ticks = (long)Math.Ceiling(span * factor * PresentedFps - 1e-9);
+        long ticks = (long)Math.Ceiling(span * factor * fps - 1e-9);
         var text = new StringBuilder();
         long runStart = 0, previousStart = 0; int current = -1;
         void Emit(int file, long from, long to)
         {
             // Rounded cumulative microseconds: no drift however many runs there are.
-            long d = (long)Math.Round(to * 1e6 / PresentedFps) - (long)Math.Round(from * 1e6 / PresentedFps);
+            long d = (long)Math.Round(to * 1e6 / fps) - (long)Math.Round(from * 1e6 / fps);
             text.Append("file '").Append(files[file].Replace("'", "'\\''")).Append("'\nduration ").Append((d / 1e6).ToString("F6", System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
         }
         int cursor = 0;
         for (long t = 0; t < ticks; t++)
         {
-            double wanted = t / (double)PresentedFps / factor / interval;
+            double wanted = t / (double)fps / factor / interval;
             while (cursor + 1 < index.Length && Math.Abs(index[cursor + 1] - wanted) <= Math.Abs(index[cursor] - wanted)) cursor++;
             if (cursor != current)
             {
@@ -147,7 +157,7 @@ public static class Report
     static string E(string text) => WebUtility.HtmlEncode(text);
     static string Url(string relative) => string.Join("/", relative.Split('/').Select(Uri.EscapeDataString));
 
-    static string Html(string root, string[] probes, string[] fields)
+    static string Html(string root, string[] probes, string[] fields, ReportConfig rc)
     {
         var h = new StringBuilder();
         void Pre(string title, string path)
@@ -176,8 +186,8 @@ public static class Report
         {
             h.Append("<p>One file per slowdown. Video tracks: ").Append(E(fields.Length == 0 ? "none" : string.Join(", ", fields)))
              .Append(". Audio tracks: ").Append(E(probes.Length == 0 ? "none" : string.Join(", ", probes)))
-             .Append(". Choose tracks in the player (VLC: Video / Audio menus). Nominal ").Append(PresentedFps).Append(" frames per second presented.</p>\n<p>");
-            foreach (int factor in Slowdowns)
+             .Append(". Choose tracks in the player (VLC: Video / Audio menus). Nominal ").Append(rc.framesPerSecond).Append(" frames per second presented.</p>\n<p>");
+            foreach (int factor in rc.slowdowns)
                 h.Append("<a href=\"").Append(Url($"videos/x{factor}.mkv")).Append("\">").Append(factor == 1 ? "1x" : factor + "x slower").Append("</a> ");
             h.Append("</p>\n");
         }
@@ -186,13 +196,13 @@ public static class Report
         if (probes.Length == 0) h.Append("<p>None.</p>\n");
         else
         {
-            h.Append("<p>WAV files; slowed versions drop pitch on purpose.</p>\n<table border=\"1\" cellpadding=\"3\" cellspacing=\"0\"><tr><th>probe</th>");
-            foreach (int factor in Slowdowns) h.Append("<th>").Append(factor).Append("x</th>");
+            h.Append("<p>WAV files. Slowed versions (N &gt; 1) are distorted on purpose: every frequency f becomes ").Append(rc.slowedAudioRescale.ToString("R")).Append(" &times; (f / N + ").Append(rc.slowedAudioShiftHz.ToString("R")).Append(" Hz).</p>\n<table border=\"1\" cellpadding=\"3\" cellspacing=\"0\"><tr><th>probe</th>");
+            foreach (int factor in rc.slowdowns) h.Append("<th>").Append(factor).Append("x</th>");
             h.Append("</tr>\n");
             foreach (string p in probes)
             {
                 h.Append("<tr><td>").Append(E(p)).Append("</td>");
-                foreach (int factor in Slowdowns)
+                foreach (int factor in rc.slowdowns)
                     h.Append("<td><a href=\"").Append(Url($"wav/{p}_x{factor}.wav")).Append("\">wav</a></td>");
                 h.Append("</tr>\n");
             }

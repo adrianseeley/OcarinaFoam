@@ -24,5 +24,6 @@ public class Config
     public int acousticDampingClearanceMillimeters = 20;
     public RenderConfig renderer = null;
     public AudioConfig audio = new AudioConfig();
+    public ReportConfig report = new ReportConfig();
     public Probe[] probes = null;
 }

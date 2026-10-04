@@ -1,4 +1,4 @@
-// Defaults favour sample quality over speed; "audio" in config.json is optional and rarely needs editing.
+// Every key (including plots) is required in config.json; these initial values only back programmatic use and the self-test.
 public class AudioConfig
 {
     public int sampleRateHz = 96000;

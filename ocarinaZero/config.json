@@ -41,6 +41,37 @@
   "acousticDampingThicknessMillimeters": 250,
   "acousticDampingStrengthMultiplier": 20,
   "acousticDampingClearanceMillimeters": 20,
+  "audio": {
+    "sampleRateHz": 96000,
+    "highPassHz": 2,
+    "fadeMilliseconds": 0,
+    "peakTargetDbfs": -1,
+    "sharedGain": false,
+    "kernelZeroCrossings": 48,
+    "kaiserBeta": 10,
+    "plots": {
+      "enabled": true,
+      "concertAHz": 440,
+      "minimumOctave": 0,
+      "maximumOctave": 9,
+      "maximumFrequencyHz": 20000,
+      "spectrumWidth": 4800,
+      "spectrumHeight": 1600,
+      "punchWidth": 2400,
+      "punchHeight": 2000,
+      "labelFontPixels": 20,
+      "displayFloorDbfs": -120
+    }
+  },
+  "report": {
+    "slowdowns": [1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 1000, 2000, 3000, 4000, 5000, 10000, 20000, 30000, 40000, 50000, 100000],
+    "framesPerSecond": 30,
+    "videoLongSidePixels": 1024,
+    "videoCrf": 16,
+    "slowedAudioShiftHz": 200,
+    "slowedAudioRescale": 2,
+    "slowedAudioMinimumSampleRateHz": 8000
+  },
   "renderer": {
     "renderThreads": 6,
     "pollMilliseconds": 2000,

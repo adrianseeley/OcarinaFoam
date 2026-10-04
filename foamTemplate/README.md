@@ -35,8 +35,9 @@ code/template experiment; there is no compatibility layer or universal solver UI
 
 ## Config reference
 
-Each case owns `config.json`. Unknown keys are errors. Keep a full config with the
-case so its intent is inspectable. The builder snapshots it to `foam/config.json`;
+Each case owns `config.json`. Unknown keys are errors and so are missing ones: every
+key, including all of `audio` (and `audio.plots`), `report` and `renderer`, must be
+present, with no silent defaults. Copy `ocarinaZero/config.json` as the complete list. The builder snapshots it to `foam/config.json`;
 physics changes subsequently require a fresh case/build. Runtime rendering reads
 this snapshot and the case's current renderer section; it never regenerates code.
 

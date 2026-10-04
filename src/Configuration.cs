@@ -13,9 +13,30 @@ public static class Configuration
 
     public static string Serialize(object value) => JsonSerializer.Serialize(value, new JsonSerializerOptions { IncludeFields = true });
 
-    public static Config Load(string path)
+    // Every public field must be present in the file, recursively; no silent defaults.
+    static void RequireKeys(JsonElement json, Type type, string path)
     {
-        Config c = JsonSerializer.Deserialize<Config>(File.ReadAllText(path), Json) ?? throw new Exception("Empty config.");
+        if (json.ValueKind == JsonValueKind.Array && type.IsArray && IsConfigClass(type.GetElementType()))
+        {
+            int i = 0;
+            foreach (JsonElement item in json.EnumerateArray()) RequireKeys(item, type.GetElementType(), path + "[" + i++ + "]");
+            return;
+        }
+        if (!IsConfigClass(type) || json.ValueKind != JsonValueKind.Object) return;
+        foreach (var field in type.GetFields())
+        {
+            string where = path.Length == 0 ? field.Name : path + "." + field.Name;
+            if (!json.TryGetProperty(field.Name, out JsonElement value)) throw new Exception("config.json is missing required key '" + where + "'.");
+            RequireKeys(value, field.FieldType, where);
+        }
+    }
+    static bool IsConfigClass(Type t) => t.IsClass && t != typeof(string) && !t.IsArray && t.Namespace == null && t != typeof(JsonElement);
+
+    public static Config Load(string path, bool strict = true)
+    {
+        string text = File.ReadAllText(path);
+        if (strict) { using JsonDocument document = JsonDocument.Parse(text, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip }); RequireKeys(document.RootElement, typeof(Config), ""); }
+        Config c = JsonSerializer.Deserialize<Config>(text, Json) ?? throw new Exception("Empty config.");
         if (c.worldPaddingMillimeters == null || c.renderer == null || c.bodyDistanceRefinement == null || c.probes == null)
             throw new Exception("Config requires worldPaddingMillimeters, renderer, bodyDistanceRefinement and probes.");
         Positive(c.processorCount, "processorCount"); Positive(c.backgroundCellSizeMillimeters, "backgroundCellSizeMillimeters");
@@ -47,6 +68,7 @@ public static class Configuration
         if (!double.IsFinite(au.peakTargetDbfs) || au.peakTargetDbfs > 0) throw new Exception("peakTargetDbfs must be finite and at most 0.");
         Positive(au.kernelZeroCrossings, "kernelZeroCrossings"); Positive(au.kaiserBeta, "kaiserBeta");
         AudioPlots.Validate(au.plots);
+        if (strict) ValidateReport(c.report ?? throw new Exception("report must not be null."), au);
         RenderConfig rconf = c.renderer;
         Positive(rconf.renderThreads, "renderThreads"); Positive(rconf.pollMilliseconds, "pollMilliseconds");
         if (rconf.plotWidth < 128 || rconf.plotHeight < 128) throw new Exception("Render tiles must be at least 128 pixels.");
@@ -60,6 +82,19 @@ public static class Configuration
         if (!double.IsFinite(lastFrame) || lastFrame > int.MaxValue) throw new Exception("Too many output frames.");
         return c;
     }
+    static void ValidateReport(ReportConfig r, AudioConfig au)
+    {
+        if (r.slowdowns == null || r.slowdowns.Length == 0 || r.slowdowns.Any(n => n < 1) || r.slowdowns.Distinct().Count() != r.slowdowns.Length)
+            throw new Exception("report.slowdowns must be a non-empty list of distinct integers >= 1.");
+        if (r.framesPerSecond < 1 || r.framesPerSecond > 240) throw new Exception("report.framesPerSecond must be 1..240.");
+        if (r.videoLongSidePixels < 64 || r.videoLongSidePixels > 8192) throw new Exception("report.videoLongSidePixels must be 64..8192.");
+        if (r.videoCrf < 0 || r.videoCrf > 51) throw new Exception("report.videoCrf must be 0..51.");
+        Nonnegative(r.slowedAudioShiftHz, "report.slowedAudioShiftHz"); Positive(r.slowedAudioRescale, "report.slowedAudioRescale");
+        if (r.slowedAudioRescale > 100) throw new Exception("report.slowedAudioRescale must be at most 100.");
+        if (r.slowedAudioMinimumSampleRateHz < 1000 || r.slowedAudioMinimumSampleRateHz > 384000) throw new Exception("report.slowedAudioMinimumSampleRateHz must be 1000..384000.");
+        foreach (int n in r.slowdowns)
+            if (n > 1 && ReportMath.Intermediate(au.sampleRateHz, n) > 50_000_000L) throw new Exception($"report.slowdowns {n} has no practical exact ratio with audio.sampleRateHz {au.sampleRateHz}; use a factor sharing a large divisor with the sample rate.");
+    }
     public static void Positive(double value, string name) { if (!double.IsFinite(value) || value <= 0) throw new Exception(name + " must be finite and positive."); }
     public static void Nonnegative(double value, string name) { if (!double.IsFinite(value) || value < 0) throw new Exception(name + " must be finite and nonnegative."); }
     public static string Fingerprint(Config c)
@@ -67,16 +102,16 @@ public static class Configuration
         // Renderer controls are read live on restart; physics is frozen in foam/config.json.
         string text = JsonSerializer.Serialize(c, Json);
         using var document = JsonDocument.Parse(text);
-        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name is not ("renderer" or "audio")).Select(x => x.ToString()));
+        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name is not ("renderer" or "audio" or "report")).Select(x => x.ToString()));
         return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(physical)));
     }
     public static Config Built(string root)
     {
         if (!File.Exists(Path.Combine(Paths.Foam(root), ".built"))) throw new Exception("Case is not fully built. Run ocarina build DIR first.");
         Config current = Load(Path.Combine(root, "config.json"));
-        Config built = Load(Path.Combine(Paths.Foam(root), "config.json"));
+        Config built = Load(Path.Combine(Paths.Foam(root), "config.json"), false);
         if (Fingerprint(current) != Fingerprint(built)) throw new Exception("Physics config changed since build. Use a fresh case directory and build it.");
-        built.renderer = current.renderer; built.audio = current.audio;
+        built.renderer = current.renderer; built.audio = current.audio; built.report = current.report;
         return built;
     }
 }

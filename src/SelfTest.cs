@@ -34,6 +34,16 @@ public static class SelfTest
     {
         string dir = Path.Combine(AppContext.BaseDirectory, "ocarinaZero");
         Config c = Configuration.Load(Path.Combine(dir, "config.json"));
+        string full = File.ReadAllText(Path.Combine(dir, "config.json"));
+        string Without(string key) { var node = System.Text.Json.Nodes.JsonNode.Parse(full, null, new System.Text.Json.JsonDocumentOptions { CommentHandling = System.Text.Json.JsonCommentHandling.Skip }); var path = key.Split('.'); var o = node.AsObject(); for (int i = 0; i < path.Length - 1; i++) o = o[path[i]].AsObject(); o.Remove(path[^1]); string f = Path.Combine(Path.GetTempPath(), "ocarina-cfg-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, node.ToJsonString()); return f; }
+        foreach (string key in new[] { "audio", "report", "audio.highPassHz", "audio.plots.punchWidth", "report.slowedAudioRescale", "renderer.pointSizePixels", "probes" })
+        {
+            string f = Without(key);
+            try { Check(Throws(() => Configuration.Load(f)), "missing config key is an error: " + key); } finally { File.Delete(f); }
+        }
+        Check(c.report.slowdowns.Contains(100000) && c.report.slowedAudioShiftHz == 200 && c.report.slowedAudioRescale == 2, "example report config loads");
+        Check(ReportMath.Intermediate(96000, 100000) == 2_400_000 && ReportMath.Relabelled(96000, 100000) == 24 && ReportMath.Intermediate(96000, 3) == 96000, "slowdown ratios are exact integers");
+        Check(ReportMath.SlowedRate(c.audio, c.report, 1000) == 8000 && ReportMath.SlowedRate(c.audio, c.report, 2) > 100000, "slowed rate holds shifted and rescaled content");
         Facet[] solid = Geometry.Read(Path.Combine(dir, "solidBody.stl"));
         Facet[] inlet = Geometry.Inlet(Geometry.Read(Path.Combine(dir, "spawnPlane.stl")));
         Bounds sb = Geometry.Bound(solid), ib = Geometry.Bound(inlet);
