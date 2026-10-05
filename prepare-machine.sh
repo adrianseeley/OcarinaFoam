@@ -6,17 +6,6 @@
 # lingering for that account so its user services survive SSH logout.
 set -euo pipefail
 
-# Root is needed only for machine provisioning. The CLI and MPI run as the user.
-if [[ $EUID -ne 0 || -z ${SUDO_USER:-} || $SUDO_USER == root ]]; then
-    echo 'Run from your normal SSH account: sudo bash prepare-machine.sh' >&2
-    exit 1
-fi
-source /etc/os-release
-if [[ $ID != ubuntu || ( $VERSION_ID != 24.04 && $VERSION_ID != 26.04 ) || $(dpkg --print-architecture) != amd64 ]]; then
-    echo 'This baseline targets Ubuntu 24.04 or 26.04 LTS amd64.' >&2
-    exit 1
-fi
-
 # Refresh Ubuntu's package index. HTTPS roots authenticate package/download hosts;
 # curl fetches the official OpenCFD repository setup script; gnupg verifies packages.
 # software-properties-common manages Ubuntu's universe component for .NET.
