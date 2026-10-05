@@ -18,7 +18,7 @@ public static class Report
 
         string[] probes = hasAudio ? config.probes.Select(p => p.name).ToArray() : Array.Empty<string>();
         BuildWavs(root, probes, config);
-        string[] fields = BuildVideos(root, config, probes);
+        string[] fields = BuildVideos(root, config);
         string html = Path.Combine(root, "report.html");
         File.WriteAllText(html, Html(root, probes, fields, config.report), new UTF8Encoding(false));
         Console.WriteLine("wrote " + html);
@@ -39,7 +39,7 @@ public static class Report
         string first = Path.Combine(root, "audio", probes[0] + ".wav");
         double seconds = (new FileInfo(first).Length - 44) / 3.0 / au.sampleRateHz;
         double total = rc.slowdowns.Where(n => n > 1).Sum(n => ReportMath.SlowedBytes(seconds, ReportMath.SlowedRate(au, rc, n), n)) * probes.Length;
-        Console.WriteLine($"slowed WAVs: about {total / 1e9:F1} GB (before FLAC in the MKVs); trim report.slowdowns to reduce.");
+        Console.WriteLine($"slowed WAVs: about {total / 1e9:F1} GB ; trim report.slowdowns to reduce.");
         var jobs = (from name in probes from factor in rc.slowdowns select (name, factor)).ToList();
         // ffmpeg's resampler and the phase vocoder are single-threaded, so run several at once.
         Parallel.ForEach(jobs, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount / 2) }, job =>
@@ -49,111 +49,66 @@ public static class Report
             string target = Path.Combine(dir, $"{name}_x{factor}.wav");
             if (factor == 1) { File.Copy(source, target); return; }
             Console.WriteLine($"wav {name} {factor}x slower");
-            string intermediate = Path.Combine(dir, $".{name}_x{factor}.f32.wav");
-            Ffmpeg(root, $"report-wav-{name}-x{factor}.log", "-i", source, "-af", SlowFilter(au, rc, factor), "-c:a", "pcm_f32le", "-rf64", "auto", intermediate);
-            FrequencyScale.Finish(intermediate, target, rc.slowedAudioRescale, au.peakTargetDbfs);
-            File.Delete(intermediate);
+            Ffmpeg(root, $"report-wav-{name}-x{factor}.log", "-i", source, "-af", SlowFilter(au, rc, factor), "-c:a", "pcm_s16le", "-rf64", "auto", target);
         });
     }
 
-    // ffmpeg part: slow by N, resample to the output rate, shift every frequency up by shiftHz. The rescale multiplier is applied afterwards by FrequencyScale.
+    // Slow by N without touching pitch handling: relabel the sample rate, then resample to a rate players accept.
     static string SlowFilter(AudioConfig au, ReportConfig rc, int factor)
     {
         var chain = new List<string>();
         if (ReportMath.Intermediate(au.sampleRateHz, factor) != au.sampleRateHz) chain.Add($"aresample={ReportMath.Intermediate(au.sampleRateHz, factor)}");
         chain.Add($"asetrate={ReportMath.Relabelled(au.sampleRateHz, factor)}");
         chain.Add($"aresample={ReportMath.SlowedRate(au, rc, factor)}");
-        if (rc.slowedAudioShiftHz > 0) chain.Add("afreqshift=shift=" + rc.slowedAudioShiftHz.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
         return string.Join(",", chain);
     }
 
-    // One MKV per slowdown: a titled video track per field and a titled audio track per probe, all on the same slowed timeline.
-    // Frame k of a field is simulation time k * interval. Each presented tick shows the nearest rendered frame, so frames are
-    // dropped when the slowdown is small and held when it is large.
-    static string[] BuildVideos(string root, Config config, string[] probes)
+    // One browser-friendly silent MP4 per rendered field and view (videos/FIELD/VIEW.mp4): every frame, in order, at framesPerSecond.
+    static string[] BuildVideos(string root, Config config)
     {
         string dir = Path.Combine(root, "videos");
         if (Directory.Exists(dir)) Directory.Delete(dir, true);
         string renders = Path.Combine(root, "renders");
-        var frames = new List<(string Name, string[] Files, int[] Index)>();
+        var fields = new List<(string Name, string[] Files)>();
         if (Directory.Exists(renders))
-            foreach (string field in Directory.GetDirectories(renders).OrderBy(d => d, StringComparer.Ordinal))
+            foreach (string view in Directory.GetDirectories(renders, "*", SearchOption.AllDirectories).OrderBy(d => d, StringComparer.Ordinal))
             {
+                if (Path.GetDirectoryName(Path.GetDirectoryName(view)) != renders) continue;
                 var found = new List<(int Index, string File)>();
-                foreach (string file in Directory.EnumerateFiles(field, "*.png"))
+                foreach (string file in Directory.EnumerateFiles(view, "*.png"))
                     if (int.TryParse(Path.GetFileNameWithoutExtension(file), out int index)) found.Add((index, file));
                 if (found.Count == 0) continue;
                 found.Sort((x, y) => x.Index.CompareTo(y.Index));
-                frames.Add((Path.GetFileName(field), found.Select(f => f.File).ToArray(), found.Select(f => f.Index).ToArray()));
+                fields.Add((Path.GetFileName(Path.GetDirectoryName(view)) + "/" + Path.GetFileName(view), found.Select(f => f.File).ToArray()));
             }
-        if (frames.Count == 0 && probes.Length == 0) return Array.Empty<string>();
+        if (fields.Count == 0) return Array.Empty<string>();
         Directory.CreateDirectory(dir);
         string temporary = Path.Combine(root, ".report-tmp");
         if (Directory.Exists(temporary)) Directory.Delete(temporary, true);
         Directory.CreateDirectory(temporary);
         try
         {
-            ReportConfig rc = config.report; int fps = rc.framesPerSecond;
-            double interval = config.fieldWriteIntervalTimeSteps * config.deltaTSeconds;
-            double span = frames.Count == 0 ? 0 : (frames.Max(f => f.Index[^1]) + 1) * interval;
-            foreach (int factor in config.report.slowdowns)
+            ReportConfig rc = config.report;
+            foreach (var field in fields)
             {
-                Console.WriteLine($"video {factor}x slower");
-                var args = new List<string> { "-hide_banner", "-nostdin", "-nostats", "-loglevel", "warning", "-y" };
-                for (int v = 0; v < frames.Count; v++)
-                {
-                    string list = Path.Combine(temporary, $"x{factor}-{v}.txt");
-                    WriteList(list, frames[v].Files, frames[v].Index, interval, factor, span, fps);
-                    args.AddRange(new[] { "-f", "concat", "-safe", "0", "-i", list });
-                }
-                foreach (string p in probes) args.AddRange(new[] { "-i", Path.Combine(root, "wav", $"{p}_x{factor}.wav") });
-                for (int v = 0; v < frames.Count; v++) args.AddRange(new[] { "-map", $"{v}:v" });
-                for (int a = 0; a < probes.Length; a++) args.AddRange(new[] { "-map", $"{frames.Count + a}:a" });
-                for (int v = 0; v < frames.Count; v++) args.AddRange(new[] { $"-metadata:s:v:{v}", "title=" + frames[v].Name });
-                for (int a = 0; a < probes.Length; a++) args.AddRange(new[] { $"-metadata:s:a:{a}", "title=" + probes[a] });
+                // Sequentially numbered links give ffmpeg's image2 demuxer a gapless sequence whatever the frame numbers were.
+                string sequence = Path.Combine(temporary, field.Name);
+                Directory.CreateDirectory(sequence);
+                for (int i = 0; i < field.Files.Length; i++) File.CreateSymbolicLink(Path.Combine(sequence, $"{i:D8}.png"), Path.GetFullPath(field.Files[i]));
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(dir, field.Name))!);
+                Console.WriteLine($"video {field.Name} ({field.Files.Length} frames)");
                 string scale = $"scale='if(gte(iw,ih),{rc.videoLongSidePixels},-2)':'if(gte(iw,ih),-2,{rc.videoLongSidePixels})':flags=lanczos,format=yuv420p";
-                if (frames.Count > 0)
-                    args.AddRange(new[] { "-vf", scale, "-fps_mode", "passthrough", "-c:v", "libx264", "-preset", "medium", "-crf", rc.videoCrf.ToString() });
-                if (probes.Length > 0) args.AddRange(new[] { "-c:a", "flac" });
-                args.AddRange(new[] { "-metadata", $"title={Path.GetFileName(root)} {factor}x slower", Path.Combine(dir, $"x{factor}.mkv") });
-                Ffmpeg(root, $"report-video-x{factor}.log", args.ToArray());
+                Ffmpeg(root, $"report-video-{field.Name.Replace('/', '-')}.log",
+                    "-framerate", rc.framesPerSecond.ToString(), "-i", Path.Combine(sequence, "%08d.png"),
+                    "-vf", scale, "-an", "-fps_mode", "passthrough",
+                    "-c:v", "libx264", "-profile:v", "high", "-preset", "slow", "-crf", rc.videoCrf.ToString(),
+                    "-movflags", "+faststart",
+                    "-metadata", $"title={Path.GetFileName(root)} {field.Name}",
+                    Path.Combine(dir, field.Name + ".mp4"));
             }
         }
         finally { Directory.Delete(temporary, true); }
-        return frames.Select(f => f.Name).ToArray();
-    }
-
-    // Concat list of (frame, duration) runs covering factor * span seconds on a grid of fps ticks per second.
-    // Held frames are one long-lived frame rather than many duplicates, which keeps very large slowdowns encodable.
-    static void WriteList(string path, string[] files, int[] index, double interval, int factor, double span, int fps)
-    {
-        long ticks = (long)Math.Ceiling(span * factor * fps - 1e-9);
-        var text = new StringBuilder();
-        long runStart = 0, previousStart = 0; int current = -1;
-        void Emit(int file, long from, long to)
-        {
-            // Rounded cumulative microseconds: no drift however many runs there are.
-            long d = (long)Math.Round(to * 1e6 / fps) - (long)Math.Round(from * 1e6 / fps);
-            text.Append("file '").Append(files[file].Replace("'", "'\\''")).Append("'\nduration ").Append((d / 1e6).ToString("F6", System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
-        }
-        int cursor = 0;
-        for (long t = 0; t < ticks; t++)
-        {
-            double wanted = t / (double)fps / factor / interval;
-            while (cursor + 1 < index.Length && Math.Abs(index[cursor + 1] - wanted) <= Math.Abs(index[cursor] - wanted)) cursor++;
-            if (cursor != current)
-            {
-                if (current >= 0) Emit(current, runStart, t);
-                current = cursor; runStart = t;
-            }
-        }
-        if (current >= 0)
-        {
-            Emit(current, runStart, ticks);
-            // The concat demuxer ignores the last duration, so repeat the final file.
-            text.Append("file '").Append(files[current].Replace("'", "'\\''")).Append("'\n");
-        }
-        File.WriteAllText(path, text.ToString(), new UTF8Encoding(false));
+        return fields.Select(f => f.Name).ToArray();
     }
 
     static string E(string text) => WebUtility.HtmlEncode(text);
@@ -171,49 +126,66 @@ public static class Report
         {
             if (File.Exists(Path.Combine(root, relative))) h.Append("<p><img src=\"").Append(Url(relative)).Append("\" alt=\"").Append(E(relative)).Append("\"></p>\n");
         }
+        void Segments(string relative)
+        {
+            string dir = Path.Combine(root, relative);
+            if (!Directory.Exists(dir)) return;
+            foreach (string f in Directory.EnumerateFiles(dir, "*_of_*.png").OrderBy(x => int.Parse(Path.GetFileName(x).Split('_')[0])))
+                Img(relative + "/" + Path.GetFileName(f));
+        }
         string title = Path.GetFileName(root);
         h.Append("<!DOCTYPE html>\n<html><head><meta charset=\"utf-8\"><title>").Append(E(title)).Append(" report</title>\n")
-         .Append("<style>body{font-family:sans-serif;margin:2em;}pre{background:#eee;padding:.5em;overflow:auto;max-height:30em;max-width:1100px}</style>\n")
+         .Append("<style>body{background:#050505;color:#FAFAFA;font-family:\"Inter\",\"Segoe UI\",system-ui,sans-serif;margin:0;padding:48px 6vw 96px;line-height:1.5;color-scheme:dark}\nh1{font-weight:300;font-size:42px;letter-spacing:.04em;margin:0 0 4px;border-bottom:2px solid #303030;padding-bottom:12px}\nh2{font-weight:300;font-size:28px;letter-spacing:.06em;text-transform:uppercase;margin:64px 0 12px;border-bottom:2px solid #303030;padding-bottom:6px}\nh3{font-weight:400;font-size:18px;color:#969696;letter-spacing:.08em;text-transform:uppercase;margin:32px 0 8px}\np,.meta{color:#969696;margin:6px 0}a{color:#969696}a:hover{color:#FAFAFA}\npre{background:#101010;border:1px solid #303030;color:#FAFAFA;padding:16px;overflow:auto;max-height:36em;font-size:14px}\nimg,video{display:block;width:100%;background:#050505;border:2px solid #303030;box-sizing:border-box}\n.videos{display:grid;grid-template-columns:repeat(auto-fit,minmax(900px,1fr));gap:24px}\ntable{border-collapse:collapse;display:block;overflow:auto;margin-top:12px}th,td{border:1px solid #303030;padding:8px 10px;text-align:center}\nth{background:#101010;color:#FAFAFA;font-weight:400;position:sticky;left:0}\naudio{width:260px;height:36px;display:block;margin:0 auto 2px}\n</style>\n")
          .Append("</head><body>\n<h1>").Append(E(title)).Append("</h1>\n<p>Case: ").Append(E(root)).Append("<br>Generated UTC ")
          .Append(DateTime.UtcNow.ToString("u")).Append("</p>\n");
         Pre("config.json", Path.Combine(root, "config.json"));
         Pre("Preflight", Path.Combine(Paths.Foam(root), "preflight.txt"));
         Pre("Mesh summary", Path.Combine(Paths.Foam(root), "meshSummary.txt"));
-        Img("previews/layout.png");
+        string previews = Path.Combine(root, "previews");
+        if (Directory.Exists(previews))
+            foreach (string preview in Directory.GetFiles(previews, "layout_*.png").OrderBy(f => f, StringComparer.Ordinal)) Img("previews/" + Path.GetFileName(preview));
 
-        bool anyVideo = Directory.Exists(Path.Combine(root, "videos"));
         h.Append("<h2>Videos</h2>\n");
-        if (!anyVideo) h.Append("<p>None.</p>\n");
+        if (fields.Length == 0) h.Append("<p>None.</p>\n");
         else
         {
-            h.Append("<p>One file per slowdown. Video tracks: ").Append(E(fields.Length == 0 ? "none" : string.Join(", ", fields)))
-             .Append(". Audio tracks: ").Append(E(probes.Length == 0 ? "none" : string.Join(", ", probes)))
-             .Append(". Choose tracks in the player (VLC: Video / Audio menus). Nominal ").Append(rc.framesPerSecond).Append(" frames per second presented.</p>\n<p>");
-            foreach (int factor in rc.slowdowns)
-                h.Append("<a href=\"").Append(Url($"videos/x{factor}.mkv")).Append("\">").Append(factor == 1 ? "1x" : factor + "x slower").Append("</a> ");
-            h.Append("</p>\n");
+            h.Append("<p>Every rendered frame at ").Append(rc.framesPerSecond).Append(" frames per second, no audio.</p>\n");
+            h.Append("<div class=\"videos\">\n");
+            foreach (string field in fields)
+                h.Append("<div><h3>").Append(E(field.Replace("/", " / "))).Append("</h3><video controls preload=\"metadata\" src=\"").Append(Url($"videos/{field}.mp4")).Append("\"></video></div>\n");
+            h.Append("</div>\n");
         }
 
         h.Append("<h2>Audio</h2>\n");
         if (probes.Length == 0) h.Append("<p>None.</p>\n");
         else
         {
-            h.Append("<p>WAV files. Slowed versions (N &gt; 1) are distorted on purpose: every frequency f becomes ").Append(rc.slowedAudioRescale.ToString("R")).Append(" &times; (f / N + ").Append(rc.slowedAudioShiftHz.ToString("R")).Append(" Hz).</p>\n<table border=\"1\" cellpadding=\"3\" cellspacing=\"0\"><tr><th>probe</th>");
+            h.Append("<p>Probes down the side, slowdown across the top. Slowed versions are the same samples played N times slower, so pitch falls with N, down to infrasound. Click a name to download.</p>\n")
+             .Append("<table border=\"1\" cellpadding=\"3\" cellspacing=\"0\"><tr><th>probe</th>");
             foreach (int factor in rc.slowdowns) h.Append("<th>").Append(factor).Append("x</th>");
             h.Append("</tr>\n");
             foreach (string p in probes)
             {
-                h.Append("<tr><td>").Append(E(p)).Append("</td>");
+                h.Append("<tr><th>").Append(E(p)).Append("</th>");
                 foreach (int factor in rc.slowdowns)
-                    h.Append("<td><a href=\"").Append(Url($"wav/{p}_x{factor}.wav")).Append("\">wav</a></td>");
+                {
+                    string url = Url($"wav/{p}_x{factor}.wav");
+                    h.Append("<td><audio controls preload=\"none\" src=\"").Append(url).Append("\"></audio><br><a href=\"").Append(url).Append("\">wav</a></td>");
+                }
                 h.Append("</tr>\n");
             }
             h.Append("</table>\n");
         }
+        if (probes.Length > 1)
+        {
+            h.Append("<h3>All probes</h3>\n");
+            Segments("audio/plots/all_waveform");
+            Img("audio/plots/all_spectrum.png");
+        }
         foreach (string p in probes)
         {
             h.Append("<h3>").Append(E(p)).Append("</h3>\n");
-            Img($"audio/{p}/plots/waveform.png");
+            Segments($"audio/{p}/plots/waveform");
             Img($"audio/{p}/plots/spectrum.png");
             Img($"audio/{p}/plots/punch.png");
         }

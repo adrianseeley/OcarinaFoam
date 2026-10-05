@@ -9,7 +9,7 @@ public static partial class Renderer
 {
     // Map current scalar values to colour and absolute temporal differences to alpha.
     // Colour = (value - current minimum) / current range; uniform fields use 0.5.
-    // Alpha = abs(current - predecessor) / largest such difference; no change gives 0.
+    // Alpha = minimumAlpha + (1 - minimumAlpha) * abs(current - predecessor) / largest such difference.
     // The first discovered time has no predecessor and uses alpha 1. U is reduced to
     // speed BEFORE differencing, so direction changes at constant speed are invisible.
     // The predecessor is the previous queued available time, not necessarily t-deltaT.
@@ -51,7 +51,7 @@ public static partial class Renderer
             }
             for (int i = 0; i < alpha.Length; i++)
             {
-                alpha[i] = maxDelta == 0 ? 0f : (float)(deltas[i] / maxDelta); // Brightest where this frame changed most.
+                alpha[i] = maxDelta == 0 ? MinimumAlpha : MinimumAlpha + (1f - MinimumAlpha) * (float)(deltas[i] / maxDelta); // Brightest where this frame changed most; unchanged points keep the floor.
             }
         }
         double range = maximum - minimum;

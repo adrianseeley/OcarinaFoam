@@ -13,7 +13,6 @@ public static class Status
         Config c=Configuration.Built(root);Renderer.Configure(root,c,false);
         Console.WriteLine();
         Renderer.PrintLayoutSummary();
-        if(Renderer.RecipeCompatibilityNote.Length>0)Console.WriteLine(Renderer.RecipeCompatibilityNote);
         string[] processors=Renderer.FindProcessors();
         var done=Renderer.CompletedTimes();
         var eligible=Renderer.ReadyTimes(processors,new HashSet<string>());

@@ -23,15 +23,13 @@ public static partial class Renderer
     public static float LabelFontPixels = 0;
     public static SKColor BackgroundColor = SKColors.Black;
     public static SKColor LabelColor = SKColors.Black;
-    public static int GridColumns;
-    public static int GridRows;
     public static float PointSizePixels = 0f;
-    public static float AxisTiltDegrees = 0f; // Off-axis peek so grids don't hide points behind one another.
 
     // Camera look-at point and framing come from the ocarina's own bounding box, not the air domain.
     public static Vector3 ObjectMinimum = new Vector3(0f, 0f, 0f);
     public static Vector3 ObjectMaximum = new Vector3(0f, 0f, 0f);
     public static float CameraPaddingFraction = 0f;
+    public static float MinimumAlpha = 0f;
 
     public static Field[] Fields = new Field[]
     {
@@ -41,11 +39,8 @@ public static partial class Renderer
         new Field { Enabled = false, File = "T", Name = "temperature", Unit = "K", DecimalPlaces = 0 }
     };
 
-    public static RenderTileDefinition[][] Tiles = Array.Empty<RenderTileDefinition[]>();
-    public static Camera[][] TileCameras = Array.Empty<Camera[]>();
-    public static int CameraTileCount = 0;
-    public static int LegendTileCount = 0;
-    public static string RecipeCompatibilityNote = "";
+    public static RenderTileDefinition[] Views = Array.Empty<RenderTileDefinition>();
+    public static Camera[] ViewCameras = Array.Empty<Camera>();
 
     public const int SelfRendered = 1;
     public const int PredecessorConsumed = 2;

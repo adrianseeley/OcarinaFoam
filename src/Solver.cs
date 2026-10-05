@@ -8,8 +8,10 @@ public static class Solver
         string[] parts=c.processorCount==1?new[]{foam}:Enumerable.Range(0,c.processorCount).Select(i=>Path.Combine(foam,"processor"+i)).ToArray();
         string latest=null;
         foreach(string part in parts)
-        {
             if(!Directory.Exists(Path.Combine(part,"constant","polyMesh")))throw new Exception("Missing mesh: "+part);
+        DiscardIncompleteWrites(parts);
+        foreach(string part in parts)
+        {
             string[] times=Renderer.Times(part,out _);string candidate=times.LastOrDefault()??ZeroTime(part);
             if(latest!=null&&candidate!=latest)throw new Exception("Latest times differ across processors. Refusing an inconsistent restart; inspect the last write.");
             latest=candidate;
@@ -28,6 +30,38 @@ public static class Solver
         Console.WriteLine("Solver starts from t="+latest+"; log "+log);
         if(c.processorCount==1) Commands.Foam(foam,log,"rhoPimpleFoam");
         else Commands.Foam(foam,log,"mpirun","-np",c.processorCount.ToString(),"rhoPimpleFoam","-parallel");
+    }
+    // A solver killed mid-write leaves a newest time directory that is missing or has truncated fields.
+    // Delete such directories (newest first, on every processor) so the run resumes from the last complete write.
+    static void DiscardIncompleteWrites(string[] parts)
+    {
+        var all=parts.SelectMany(part=>Renderer.Times(part,out _)).Distinct().OrderByDescending(t=>double.Parse(t,System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        foreach(string time in all)
+        {
+            if(parts.All(part=>IsCompleteWrite(part,time)))return;
+            foreach(string part in parts)
+            {
+                string dir=Path.Combine(part,time);
+                if(Directory.Exists(dir)){Directory.Delete(dir,true);}
+            }
+            Console.WriteLine("Discarded incomplete write at t="+time+"; resuming from the previous complete write.");
+        }
+    }
+    static bool IsCompleteWrite(string part,string time)
+    {
+        try
+        {
+            int count=Renderer.CellCount(Path.Combine(part,"constant","polyMesh"));
+            foreach(string field in new[]{"p","U","T","nut","alphat"})
+            {
+                string path=Path.Combine(part,time,field);
+                if(!File.Exists(path)&&!File.Exists(path+".gz"))return false;
+                double min=double.PositiveInfinity,max=double.NegativeInfinity;
+                Renderer.ReadField(path,field=="U",new double[count],0,count,ref min,ref max);
+            }
+            return true;
+        }
+        catch(Exception){return false;}
     }
     // The initial directory is named by timeFormat (e.g. "0" or "0.0000000000"), so match it numerically.
     public static string ZeroTime(string part)

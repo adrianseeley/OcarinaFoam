@@ -9,7 +9,7 @@ public static class SelfTest
     static Config Cfg(Padding p) => new Config { worldPaddingMillimeters = p, backgroundCellSizeMillimeters = 5 };
     static Bounds B(double[] min, double[] max) => new Bounds { Min = min, Max = max };
     static double Span(List<Band> bands) => bands.Sum(b => b.End - b.Start);
-    static RenderConfig RenderCfg(string tilesJson) => new RenderConfig
+    static RenderConfig RenderCfg(string viewsJson) => new RenderConfig
     {
         renderThreads = 1,
         pollMilliseconds = 1000,
@@ -18,16 +18,16 @@ public static class SelfTest
         plotHeight = 300,
         marginPixels = 20,
         labelFontPixels = 24,
-        backgroundColor = "#000000",
+        backgroundColor = "#050505",
         labelColor = "#ffffff",
         pointSizePixels = 3,
-        axisTiltDegrees = 0,
         cameraPaddingFraction = 0.2,
+        minimumAlpha = 0.1,
         renderPressure = true,
         renderVelocityMagnitude = false,
         renderDensity = false,
         renderTemperature = false,
-        tiles = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement[][]>(tilesJson, Configuration.Json)
+        views = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement[]>(viewsJson, Configuration.Json)
     };
 
     public static int Run()
@@ -36,25 +36,14 @@ public static class SelfTest
         Config c = Configuration.Load(Path.Combine(dir, "config.json"));
         string full = File.ReadAllText(Path.Combine(dir, "config.json"));
         string Without(string key) { var node = System.Text.Json.Nodes.JsonNode.Parse(full, null, new System.Text.Json.JsonDocumentOptions { CommentHandling = System.Text.Json.JsonCommentHandling.Skip }); var path = key.Split('.'); var o = node.AsObject(); for (int i = 0; i < path.Length - 1; i++) o = o[path[i]].AsObject(); o.Remove(path[^1]); string f = Path.Combine(Path.GetTempPath(), "ocarina-cfg-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, node.ToJsonString()); return f; }
-        foreach (string key in new[] { "audio", "report", "audio.highPassHz", "audio.plots.punchWidth", "report.slowedAudioRescale", "renderer.pointSizePixels", "probes" })
+        foreach (string key in new[] { "audio", "report", "audio.highPassHz", "audio.plots.punchWidth", "report.videoCrf", "renderer.pointSizePixels", "probes" })
         {
             string f = Without(key);
             try { Check(Throws(() => Configuration.Load(f)), "missing config key is an error: " + key); } finally { File.Delete(f); }
         }
-        Check(c.report.slowdowns.Contains(100000) && c.report.slowedAudioShiftHz == 200 && c.report.slowedAudioRescale == 2, "example report config loads");
+        Check(c.report != null, "example report config loads");
         Check(ReportMath.Intermediate(96000, 100000) == 2_400_000 && ReportMath.Relabelled(96000, 100000) == 24 && ReportMath.Intermediate(96000, 3) == 96000, "slowdown ratios are exact integers");
-        {
-            double Peak(double[] x, double fs) { double[] d = AudioDsp.Spectrum(x, fs, out double b); int t = 1; for (int k = 1; k < d.Length; k++) if (d[k] > d[t]) t = k; return t * b; }
-            double Centre(double[] x) { double n = 0, e = 0; for (int i = 0; i < x.Length; i++) { n += i * x[i] * x[i]; e += x[i] * x[i]; } return n / e; }
-            double[] Burst(int len, double fs, double hz, int a, int b) => Enumerable.Range(0, len).Select(i => i < a || i >= b ? 0 : Math.Sin(2 * Math.PI * hz * i / fs) * Math.Sin(Math.PI * (i - a) / (b - a))).ToArray();
-            double[] longTone = Burst(16000, 8000, 100, 5000, 9000), scaled = FrequencyScale.Scale(longTone, 2);
-            Check(scaled.Length == longTone.Length && Math.Abs(Peak(scaled, 8000) - 200) < 4, "frequency scale x2 moves 100 Hz to 200 Hz and keeps length");
-            Check(Math.Abs(Centre(scaled) - Centre(longTone)) < 200, "frequency scale keeps event timing");
-            double[] shortTone = Burst(3157, 106481, 1200, 300, 2800), shortScaled = FrequencyScale.Scale(shortTone, 2);
-            Check(shortScaled.Length == 3157 && Math.Abs(Peak(shortScaled, 106481) - 2400) < 300 && AudioDsp.Peak(shortScaled) > 0.2, "frequency scale works on a 30 ms record");
-            Check(Math.Abs(Peak(FrequencyScale.Scale(longTone, 0.5), 8000) - 50) < 4, "frequency scale x0.5 lowers pitch");
-        }
-        Check(ReportMath.SlowedRate(c.audio, c.report, 1000) == 8000 && ReportMath.SlowedRate(c.audio, c.report, 2) > 100000, "slowed rate holds shifted and rescaled content");
+        Check(ReportMath.SlowedRate(c.audio, c.report, 1000) == 8000 && ReportMath.SlowedRate(c.audio, c.report, 2) == 48000, "slowed rate keeps the original content and never drops below the minimum");
         Facet[] solid = Geometry.Read(Path.Combine(dir, "solidBody.stl"));
         Facet[] inlet = Geometry.Inlet(Geometry.Read(Path.Combine(dir, "spawnPlane.stl")));
         Bounds sb = Geometry.Bound(solid), ib = Geometry.Bound(inlet);
@@ -105,23 +94,21 @@ public static class SelfTest
         Console.WriteLine(pre.Report);
         Check(!pre.Report.Contains("WARNING"), "all fluid, including chamber and throat, connects to locationInMesh");
 
-        // Renderer tile parsing and camera behaviour.
-        RenderConfig sample = RenderCfg(
-            "[[{\"name\":\"Xp\",\"from\":[1,0,0]},{\"name\":\"Yn\",\"from\":[0,-1,0]}],[\"legend\",{\"name\":\"Zp\",\"from\":[0,0,1],\"up\":[0,1,0]}],[{\"name\":\"XpYpZp\",\"from\":[1,1,1]},{\"name\":\"XnYnZp\",\"from\":[-1,-1,1]}]]");
-        RenderTileDefinition[][] parsed = Renderer.ParseTiles(sample);
-        Check(parsed.Length == 3 && parsed[0].Length == 2 && Renderer.CameraTileCount == 5 && Renderer.LegendTileCount == 1, "renderer tiles parse the 3x2 sample layout");
-        Check(!Throws(() => Renderer.ParseTiles(RenderCfg("[[{\"name\":\"only\",\"from\":[1,0,0]}]]"))), "renderer accepts camera-only layouts");
-        Check(Throws(() => Renderer.ParseTiles(RenderCfg("[[\"legend\"],[\"legend\"]]"))), "renderer rejects legend-only layouts");
-        Check(Throws(() => Renderer.ParseTiles(RenderCfg("[[\"Legend\",{\"name\":\"Xp\",\"from\":[1,0,0]}]]"))), "renderer rejects non-sentinel legend strings");
-        Check(Throws(() => Renderer.ParseTiles(RenderCfg("[[{\"name\":\"bad\",\"from\":[1,0]}]]"))), "renderer rejects malformed vectors");
-        Check(Throws(() => Renderer.ParseTiles(RenderCfg("[[{\"name\":\"bad\",\"from\":[1,0,0],\"unknown\":1}]]"))), "renderer rejects unknown camera keys");
+        // Renderer view parsing and camera behaviour.
+        RenderConfig sample = RenderCfg("[{\"name\":\"Xp\",\"from\":[1,0,0]},{\"name\":\"Zp_2\",\"from\":[0,0,1],\"up\":[0,1,0]}]");
+        Check(Renderer.ParseViews(sample).Length == 2, "renderer views parse");
+        Check(Throws(() => Renderer.ParseViews(RenderCfg("[]"))), "renderer rejects empty views");
+        Check(Throws(() => Renderer.ParseViews(RenderCfg("[\"legend\"]"))), "renderer rejects non-camera views");
+        Check(Throws(() => Renderer.ParseViews(RenderCfg("[{\"name\":\"a b\",\"from\":[1,0,0]}]"))), "renderer rejects view names unsafe for folders");
+        Check(Throws(() => Renderer.ParseViews(RenderCfg("[{\"name\":\"a\",\"from\":[1,0,0]},{\"name\":\"a\",\"from\":[0,1,0]}]"))), "renderer rejects duplicate view names");
+        Check(Throws(() => Renderer.ParseViews(RenderCfg("[{\"name\":\"bad\",\"from\":[1,0]}]"))), "renderer rejects malformed vectors");
+        Check(Throws(() => Renderer.ParseViews(RenderCfg("[{\"name\":\"bad\",\"from\":[1,0,0],\"unknown\":1}]"))), "renderer rejects unknown camera keys");
 
         Renderer.PlotWidth = 300; Renderer.PlotHeight = 220; Renderer.MarginPixels = 20; Renderer.LabelFontPixels = 24;
         Renderer.ObjectMinimum = new System.Numerics.Vector3(-1, -2, -3);
         Renderer.ObjectMaximum = new System.Numerics.Vector3(1, 2, 3);
         Renderer.CameraPaddingFraction = 0.2f;
-        Renderer.AxisTiltDegrees = 0f;
-        SKRect content = Renderer.TileContentRect(0, 0);
+        SKRect content = Renderer.TileContentRect();
         RenderTileDefinition t1 = new RenderTileDefinition { Name = "a", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 };
         RenderTileDefinition t2 = new RenderTileDefinition { Name = "b", From = new[] { 10d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 };
         Camera c1 = Renderer.MakeCamera(t1, content);
@@ -133,12 +120,6 @@ public static class SelfTest
         RenderTileDefinition zoomB = new RenderTileDefinition { Name = "z3", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 3 };
         Check(Math.Abs(Renderer.MakeCamera(zoomB, content).Scale / Renderer.MakeCamera(zoomA, content).Scale - 3f) < 1e-5f, "zoom multiplies orthographic scale");
         Check(Throws(() => Renderer.MakeCamera(new RenderTileDefinition { Name = "badup", From = new[] { 0d, 0d, 1d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 }, content)), "parallel up vector is rejected");
-
-        RenderTileDefinition[][] defaultsA = Renderer.ResolveTileDefaults(parsed, new[] { 0d, 0d, 0d });
-        RenderTileDefinition[][] defaultsB = Renderer.ResolveTileDefaults(Renderer.ParseTiles(RenderCfg(
-            "[[{\"name\":\"Xp\",\"from\":[1,0,0],\"up\":[0,0,1],\"targetMillimeters\":[0,0,0],\"zoom\":1},{\"name\":\"Yn\",\"from\":[0,-1,0],\"up\":[0,0,1],\"targetMillimeters\":[0,0,0],\"zoom\":1}],[\"legend\",{\"name\":\"Zp\",\"from\":[0,0,1],\"up\":[0,1,0],\"targetMillimeters\":[0,0,0],\"zoom\":1}],[{\"name\":\"XpYpZp\",\"from\":[1,1,1],\"up\":[0,0,1],\"targetMillimeters\":[0,0,0],\"zoom\":1},{\"name\":\"XnYnZp\",\"from\":[-1,-1,1],\"up\":[0,0,1],\"targetMillimeters\":[0,0,0],\"zoom\":1}]]")), new[] { 0d, 0d, 0d });
-        string diff = Renderer.RecipeDifferencePath(Renderer.Recipe(sample, defaultsA), Renderer.Recipe(sample, defaultsB));
-        Check(diff == "", "recipe comparison ignores omitted-vs-explicit camera defaults");
 
         // Audio chain: a 1 kHz tone riding on ambient pressure survives resampling with its frequency and level.
         {
@@ -204,12 +185,13 @@ public static class SelfTest
                 double[] db = AudioDsp.Spectrum(tone, fs, out double b2);
                 AudioPlotResult pr = AudioPlots.Make("test_probe", tone, fs, 1e7, db, b2, au, plotDir);
                 Check(new FileInfo(pr.SpectrumPath).Length > 1000 && new FileInfo(pr.PunchPath).Length > 1000, "spectrum.png and punch.png are written");
-                Check(new FileInfo(pr.WaveformPath).Length > 1000, "waveform.png is written");
+                Check(pr.WaveformPaths.Length >= 1 && pr.WaveformPaths.All(x => new FileInfo(x).Length > 500), "one waveform png per segment is written");
+                AudioPlots.MakeJoint(new[] { "a", "b" }, new[] { tone, tone.Take(tone.Length / 2).ToArray() }, new[] { db, db }, new[] { b2, b2 }, fs, 1e7, au, plotDir);
                 AudioPlots.Make("low_rate", tone, fs, 8000, db, b2, au, plotDir);
                 AudioPlots.Make("quiet", new double[4800], fs, 1e7, AudioDsp.Spectrum(new double[4800], fs, out double b3), b3, au, plotDir);
             }
             finally { Directory.Delete(plotDir, true); }
-            Check(Throws(() => AudioPlots.Validate(new AudioPlotConfig { spectrumWidth = 800 })), "unreadable plot layouts are rejected");
+            Check(Throws(() => AudioPlots.Validate(new AudioPlotConfig { labelFontPixels = 80 })), "unreadable plot layouts are rejected");
             Check(Throws(() => AudioPlots.Validate(null)), "null plots config is rejected");
         }
 

@@ -5,10 +5,13 @@ public class AudioPlotConfig
     public int minimumOctave = 0;
     public int maximumOctave = 9;
     public double maximumFrequencyHz = 20000;
-    public int spectrumWidth = 4800;
-    public int spectrumHeight = 1600;
-    public int punchWidth = 2400;
-    public int punchHeight = 2000;
-    public int labelFontPixels = 20;
+    public int spectrumWidth = 1280;
+    public int waveformWidth = 1280;
+    public int spectrumHeight = 720;
+    public int punchWidth = 1280;
+    public int punchHeight = 720;
+    public int waveformPointsPerPlot = 100000;
+    public int labelFontPixels = 16;
+    public int punchLabelFontPixels = 10;
     public double displayFloorDbfs = -120;
 }

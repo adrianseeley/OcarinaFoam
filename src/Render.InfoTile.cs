@@ -7,47 +7,39 @@ using SkiaSharp;
 
 public static partial class Renderer
 {
-    // Display timestep, field, total sample count and current scalar range.
-    // Pressure and temperature labels use zero decimal places by default;
-    // a small real range can therefore have identical rounded endpoint labels.
+    // Title line: view, field, point count (time right-aligned). Subtitle: legend scale. Then the colour bar.
     // The legend describes colour only; it does not report the opacity delta scale.
-    public static void InfoTile(SKCanvas canvas, float font, string time, Field field, int count, double minimum, double maximum, float offsetX, float offsetY)
+    public static void Header(SKCanvas canvas, float font, string view, string time, Field field, int count, double minimum, double maximum)
     {
-        canvas.Save();
-        canvas.ClipRect(new SKRect(offsetX, offsetY, offsetX + PlotWidth, offsetY + PlotHeight));
         using SKPaint textPaint = new SKPaint { Color = LabelColor, IsAntialias = true };
-        float x = offsetX + MarginPixels;
-        float y = offsetY + MarginPixels + LabelFontPixels;
-        LineFont.Draw(canvas, "t = " + FormatTime(time), x, y, SKTextAlign.Left, font, textPaint, PlotWidth - 2 * MarginPixels);
-        y += LabelFontPixels + 12;
-        LineFont.Draw(canvas, field.Name, x, y, SKTextAlign.Left, font, textPaint, PlotWidth - 2 * MarginPixels);
-        y += LabelFontPixels + 12;
-        LineFont.Draw(canvas, count.ToString("N0", CultureInfo.InvariantCulture) + " points", x, y, SKTextAlign.Left, font, textPaint, PlotWidth - 2 * MarginPixels);
-        y += LabelFontPixels + 24;
+        using SKPaint secondaryPaint = new SKPaint { Color = Theme.Secondary, IsAntialias = true };
+        float left = MarginPixels;
+        float right = PlotWidth - MarginPixels;
+        float width = right - left;
+        float titleBaseline = MarginPixels + LabelFontPixels;
+        string title = view + "  -  " + field.Name + "  -  " + count.ToString("N0", CultureInfo.InvariantCulture) + " points";
+        LineFont.Draw(canvas, title, left, titleBaseline, SKTextAlign.Left, font, textPaint, width * 0.75f);
+        LineFont.Draw(canvas, "t = " + FormatTime(time), right, titleBaseline, SKTextAlign.Right, font, textPaint, width * 0.25f);
 
         string unitSuffix = string.IsNullOrEmpty(field.Unit) ? "" : " " + field.Unit;
         string decimalFormat = "F" + field.DecimalPlaces.ToString(CultureInfo.InvariantCulture);
         string scale = minimum == maximum
             ? "uniform: midpoint colour"
             : minimum.ToString(decimalFormat, CultureInfo.InvariantCulture) + unitSuffix + " -> " + maximum.ToString(decimalFormat, CultureInfo.InvariantCulture) + unitSuffix;
-        LineFont.Draw(canvas, scale, x, y, SKTextAlign.Left, font, textPaint, PlotWidth - 2 * MarginPixels);
-        y += LabelFontPixels + 16;
+        float subtitleBaseline = titleBaseline + LabelFontPixels + 14;
+        LineFont.Draw(canvas, scale, left, subtitleBaseline, SKTextAlign.Left, font, secondaryPaint, width);
 
-        float legendLeft = offsetX + MarginPixels;
-        float legendRight = offsetX + PlotWidth - MarginPixels;
-        float legendTop = y;
-        float legendBottom = y + LabelFontPixels * 2;
+        float barTop = subtitleBaseline + 14;
+        float barBottom = barTop + LabelFontPixels;
         SKColor[] palette = Palette();
         using SKPaint barPaint = new SKPaint { IsAntialias = false, StrokeWidth = 1, Style = SKPaintStyle.Stroke };
-        int bars = (int)(legendRight - legendLeft);
+        int bars = (int)width;
         for (int px = 0; px < bars; px++)
         {
             barPaint.Color = palette[(int)((float)px / (bars - 1) * (palette.Length - 1))];
-            float lx = legendLeft + px;
-            canvas.DrawLine(lx, legendTop, lx, legendBottom, barPaint);
+            canvas.DrawLine(left + px, barTop, left + px, barBottom, barPaint);
         }
-        LineFont.Draw(canvas, "min", legendLeft, legendBottom + LabelFontPixels + 4, SKTextAlign.Left, font, textPaint, PlotWidth - 2 * MarginPixels);
-        LineFont.Draw(canvas, "max", legendRight, legendBottom + LabelFontPixels + 4, SKTextAlign.Right, font, textPaint, PlotWidth - 2 * MarginPixels);
-        canvas.Restore();
+        using SKPaint edge = new SKPaint { Color = Theme.Grid, IsAntialias = false, StrokeWidth = 2, Style = SKPaintStyle.Stroke };
+        canvas.DrawRect(left, barTop, width, barBottom - barTop, edge);
     }
 }

@@ -36,8 +36,15 @@ public static class Configuration
     {
         string text = File.ReadAllText(path);
         if (strict) { using JsonDocument document = JsonDocument.Parse(text, new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip }); RequireKeys(document.RootElement, typeof(Config), ""); }
+        // The built copy is read for its physics only; renderer, audio and report always come from the live config.
+        if (!strict)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(text)!.AsObject();
+            foreach (string live in new[] { "renderer", "audio", "report" }) node.Remove(live);
+            text = node.ToJsonString();
+        }
         Config c = JsonSerializer.Deserialize<Config>(text, Json) ?? throw new Exception("Empty config.");
-        if (c.worldPaddingMillimeters == null || c.renderer == null || c.bodyDistanceRefinement == null || c.probes == null)
+        if (c.worldPaddingMillimeters == null || (strict && c.renderer == null) || c.bodyDistanceRefinement == null || c.probes == null)
             throw new Exception("Config requires worldPaddingMillimeters, renderer, bodyDistanceRefinement and probes.");
         Positive(c.processorCount, "processorCount"); Positive(c.backgroundCellSizeMillimeters, "backgroundCellSizeMillimeters");
         Positive(c.deltaTSeconds, "deltaTSeconds"); Positive(c.endTimeSeconds, "endTimeSeconds");
@@ -61,6 +68,7 @@ public static class Configuration
         foreach (Probe probe in c.probes)
             if (probe.point == null || probe.point.Length != 3 || probe.point.Any(v => !double.IsFinite(v)) || string.IsNullOrWhiteSpace(probe.name) || probe.name.Any(ch => !char.IsAsciiLetterOrDigit(ch) && ch != '_'))
                 throw new Exception("Each probe requires a simple alphanumeric name and three finite coordinates in metres.");
+        if (!strict) return c;
         AudioConfig au = c.audio ?? throw new Exception("audio must not be null.");
         if (au.sampleRateHz < 8000 || au.sampleRateHz > 384000) throw new Exception("audio sampleRateHz must be 8000..384000.");
         Nonnegative(au.highPassHz, "highPassHz"); Nonnegative(au.fadeMilliseconds, "fadeMilliseconds");
@@ -74,10 +82,11 @@ public static class Configuration
         if (rconf.plotWidth < 128 || rconf.plotHeight < 128) throw new Exception("Render tiles must be at least 128 pixels.");
         Positive(rconf.labelFontPixels, "labelFontPixels"); Positive(rconf.pointSizePixels, "pointSizePixels");
         Nonnegative(rconf.marginPixels, "marginPixels"); Nonnegative(rconf.cameraPaddingFraction, "cameraPaddingFraction");
+        if (!(rconf.minimumAlpha >= 0 && rconf.minimumAlpha <= 1)) throw new Exception("renderer.minimumAlpha must be 0..1.");
         if (rconf.pngCompressionLevel < 0 || rconf.pngCompressionLevel > 9) throw new Exception("PNG compression must be 0..9.");
         if (!rconf.renderPressure && !rconf.renderVelocityMagnitude && !rconf.renderDensity && !rconf.renderTemperature) throw new Exception("Enable at least one render field.");
         if (!SkiaSharp.SKColor.TryParse(rconf.backgroundColor, out _) || !SkiaSharp.SKColor.TryParse(rconf.labelColor, out _)) throw new Exception("Invalid renderer color.");
-        Renderer.ParseTiles(rconf);
+        Renderer.ParseViews(rconf);
         double lastFrame = Math.Ceiling(c.endTimeSeconds / (c.deltaTSeconds * c.fieldWriteIntervalTimeSteps)) + 3;
         if (!double.IsFinite(lastFrame) || lastFrame > int.MaxValue) throw new Exception("Too many output frames.");
         return c;
@@ -89,8 +98,6 @@ public static class Configuration
         if (r.framesPerSecond < 1 || r.framesPerSecond > 240) throw new Exception("report.framesPerSecond must be 1..240.");
         if (r.videoLongSidePixels < 64 || r.videoLongSidePixels > 8192) throw new Exception("report.videoLongSidePixels must be 64..8192.");
         if (r.videoCrf < 0 || r.videoCrf > 51) throw new Exception("report.videoCrf must be 0..51.");
-        Nonnegative(r.slowedAudioShiftHz, "report.slowedAudioShiftHz"); Positive(r.slowedAudioRescale, "report.slowedAudioRescale");
-        if (r.slowedAudioRescale > 100) throw new Exception("report.slowedAudioRescale must be at most 100.");
         if (r.slowedAudioMinimumSampleRateHz < 1000 || r.slowedAudioMinimumSampleRateHz > 384000) throw new Exception("report.slowedAudioMinimumSampleRateHz must be 1000..384000.");
         foreach (int n in r.slowdowns)
             if (n > 1 && ReportMath.Intermediate(au.sampleRateHz, n) > 50_000_000L) throw new Exception($"report.slowdowns {n} has no practical exact ratio with audio.sampleRateHz {au.sampleRateHz}; use a factor sharing a large divisor with the sample rate.");

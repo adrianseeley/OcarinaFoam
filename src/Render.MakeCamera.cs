@@ -18,13 +18,6 @@ public static partial class Renderer
         if (right.LengthSquared() <= 1e-12f) throw new Exception("renderer.tiles camera up direction is parallel to from.");
         camera.Right = Vector3.Normalize(right);
         camera.Up = Vector3.Normalize(Vector3.Cross(camera.TowardEye, camera.Right));
-        float tilt = AxisTiltDegrees * MathF.PI / 180f;
-        camera.TowardEye = Vector3.Normalize(RotateAroundAxis(camera.TowardEye, camera.Right, tilt));
-        camera.TowardEye = Vector3.Normalize(RotateAroundAxis(camera.TowardEye, camera.Up, tilt));
-        Vector3 tiltedRight = Vector3.Cross(upHint, camera.TowardEye);
-        if (tiltedRight.LengthSquared() <= 1e-12f) throw new Exception("renderer axisTiltDegrees creates a degenerate camera basis.");
-        camera.Right = Vector3.Normalize(tiltedRight);
-        camera.Up = Vector3.Normalize(Vector3.Cross(camera.TowardEye, camera.Right));
         float extentX = Math.Abs(camera.Right.X) * half.X + Math.Abs(camera.Right.Y) * half.Y + Math.Abs(camera.Right.Z) * half.Z;
         float extentY = Math.Abs(camera.Up.X) * half.X + Math.Abs(camera.Up.Y) * half.Y + Math.Abs(camera.Up.Z) * half.Z;
         if (!float.IsFinite(extentX) || !float.IsFinite(extentY) || extentX <= 0 || extentY <= 0) throw new Exception("renderer camera extents are degenerate.");

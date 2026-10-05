@@ -98,6 +98,7 @@ public static class Audio
         double target = Math.Pow(10, a.peakTargetDbfs / 20);
         double sharedPeak = stages.Max(s => AudioDsp.Peak(s.Faded));
         if (a.sharedGain) Log($"\nshared gain from loudest probe peak {sharedPeak:G6} Pa");
+        var allDb = new double[stages.Length][]; var allBin = new double[stages.Length];
         for (int p = 0; p < stages.Length; p++)
         {
             string name = c.probes[p].name; AudioStages s = stages[p];
@@ -115,6 +116,7 @@ public static class Audio
                     w.WriteLine(F(i / fsOut) + "," + F(s.Resampled[i]) + "," + F(s.HighPassed[i]) + "," + F(s.Faded[i]) + "," + F(s.Normalised[i]) + "," + s.Pcm[i]);
             }
             double[] db = AudioDsp.Spectrum(s.Normalised, fsOut, out double binHz);
+            allDb[p] = db; allBin[p] = binHz;
             int top = 1; double centroidNum = 0, centroidDen = 0;
             using (var w = new StreamWriter(Path.Combine(output, name, "spectrum.csv"), false, new UTF8Encoding(false), 1 << 20))
             {
@@ -135,7 +137,7 @@ public static class Audio
             Log($"csv: {name}/native.csv, {name}/audio.csv, {name}/spectrum.csv");
             if (a.plots.enabled)
             {
-                AudioPlotResult plots = AudioPlots.Make(name, s.Normalised, fsOut, fsIn, db, binHz, a, Path.Combine(output, name));
+                AudioPlotResult plots = AudioPlots.Make(name, s.Normalised, fsOut, fsIn, db, binHz, a, Path.Combine(output, name), p);
                 NoteSpectrum ns = plots.Notes;
                 Log($"plots: {name}/plots/spectrum.png, {name}/plots/punch.png");
                 Log($"notes: {ns.ValidCount} sampled of {ns.Notes.Length} (A4 {a.plots.concertAHz:G} Hz), mode {ns.Mode}, invalid {ns.InvalidCount}, T {ns.Duration:G6} s, fft bin {binHz:G4} Hz, 1/T {1 / ns.Duration:G4} Hz");
@@ -143,6 +145,11 @@ public static class Audio
                 if (plots.Warning != null) Log("WARNING " + plots.Warning);
                 if (ns.Mode is NoteMode.BelowFloor or NoteMode.NoNotes or NoteMode.TooShort) Log($"WARNING note plot condition: {ns.Mode}");
             }
+        }
+        if (a.plots.enabled && stages.Length > 1)
+        {
+            AudioPlots.MakeJoint(c.probes.Select(x => x.name).ToArray(), stages.Select(x => x.Normalised).ToArray(), allDb, allBin, fsOut, fsIn, a, output);
+            Log("\njoint plots: plots/all_spectrum.png, plots/all_waveform.png");
         }
         Log("\ndone");
     }

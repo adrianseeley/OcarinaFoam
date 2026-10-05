@@ -8,7 +8,7 @@
     "zMin": 0,
     "zMax": 100
   },
-  "backgroundCellSizeMillimeters": 5,
+  "backgroundCellSizeMillimeters": 1,
   "surfaceRefinementMinLevel": 3,
   "surfaceRefinementMaxLevel": 5,
   "featureRefinementLevel": 5,
@@ -55,93 +55,49 @@
       "minimumOctave": 0,
       "maximumOctave": 9,
       "maximumFrequencyHz": 20000,
-      "spectrumWidth": 4800,
-      "spectrumHeight": 1600,
-      "punchWidth": 2400,
-      "punchHeight": 2000,
-      "labelFontPixels": 20,
+      "spectrumWidth": 2048,
+      "waveformWidth": 2048,
+      "spectrumHeight": 2048,
+      "waveformPointsPerPlot": 100000,
+      "punchWidth": 2048,
+      "punchHeight": 2048,
+      "labelFontPixels": 16,
+      "punchLabelFontPixels": 10,
       "displayFloorDbfs": -120
     }
   },
   "report": {
-    "slowdowns": [1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100, 200, 300, 400, 500, 1000, 2000, 3000, 4000, 5000, 10000, 20000, 30000, 40000, 50000, 100000],
+    "slowdowns": [1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100],
     "framesPerSecond": 30,
-    "videoLongSidePixels": 1024,
-    "videoCrf": 16,
-    "slowedAudioShiftHz": 200,
-    "slowedAudioRescale": 2,
+    "videoLongSidePixels": 1920,
+    "videoCrf": 12,
     "slowedAudioMinimumSampleRateHz": 8000
   },
   "renderer": {
     "renderThreads": 6,
     "pollMilliseconds": 2000,
     "pngCompressionLevel": 6,
-    "plotWidth": 1024,
-    "plotHeight": 1024,
+    "plotWidth": 2048,
+    "plotHeight": 2048,
     "marginPixels": 20,
-    "labelFontPixels": 40,
+    "labelFontPixels": 32,
     "backgroundColor": "#050505",
     "labelColor": "#FAFAFA",
     "pointSizePixels": 3,
-    "axisTiltDegrees": 0,
     "cameraPaddingFraction": 0.2,
+    "minimumAlpha": 0.01,
     "renderPressure": true,
     "renderVelocityMagnitude": true,
     "renderDensity": true,
     "renderTemperature": true,
-    "tiles": [
-      [
-        {
-          "name": "Xp",
-          "from": [
-            1,
-            0,
-            0
-          ]
-        },
-        {
-          "name": "Yn",
-          "from": [
-            0,
-            -1,
-            0
-          ]
-        }
-      ],
-      [
-        "legend",
-        {
-          "name": "Zp",
-          "from": [
-            0,
-            0,
-            1
-          ],
-          "up": [
-            0,
-            1,
-            0
-          ]
-        }
-      ],
-      [
-        {
-          "name": "XpYpZp",
-          "from": [
-            1,
-            1,
-            1
-          ]
-        },
-        {
-          "name": "XnYnZp",
-          "from": [
-            -1,
-            -1,
-            1
-          ]
-        }
-      ]
+    "views": [
+      { "name": "Xp", "from": [1, 0, 0], "up": [0, 0, 1] },
+      { "name": "Xp-Zp-30", "from": [0.866025, 0, 0.5], "up": [-0.5, 0, 0.866025] },
+      { "name": "Xp-Zp-60", "from": [0.5, 0, 0.866025], "up": [-0.866025, 0, 0.5] },
+      { "name": "Zp", "from": [0, 0, 1], "up": [-1, 0, 0] },
+      { "name": "Hole-XpYpZp", "from": [1, 1, 1], "targetMillimeters": [0, 52.5, 10], "zoom": 3 },
+      { "name": "Hole-Xp", "from": [1, 0, 0], "targetMillimeters": [0, 52.5, 10], "zoom": 3 },
+      { "name": "Hole-Yn", "from": [0, -1, 0], "targetMillimeters": [0, 52.5, 10], "zoom": 3 }
     ]
   },
   "probes": [

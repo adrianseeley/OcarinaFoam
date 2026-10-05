@@ -10,9 +10,9 @@ public static partial class Renderer
     // Draw cell-centre circles with normalised scalar hue and delta-driven opacity.
     // Clip to this tile. Point size is in pixels, not cell volume: refined regions
     // contain more samples and can appear denser/brighter through overlap.
-    public static void RenderTile(SKCanvas canvas, SKPaint paint, RenderTileDefinition tile, Camera camera, Particle[] cloud, float[] alpha, int[] order, float font, float offsetX, float offsetY)
+    public static void RenderTile(SKCanvas canvas, SKPaint paint, Camera camera, Particle[] cloud, float[] alpha, int[] order)
     {
-        SKRect content = TileContentRect(offsetX, offsetY);
+        SKRect content = TileContentRect();
         canvas.Save();
         canvas.ClipRect(content); // Confine points to this tile content only.
         SKColor[] pointPalette = Palette();
@@ -22,7 +22,7 @@ public static partial class Renderer
             int index = order[i];
             if (alpha[index] <= 0f)
             {
-                continue; // Unchanged since the previous frame: nothing new to show here.
+                continue; // Fully transparent (minimumAlpha 0 and unchanged since the previous frame).
             }
             Particle point = cloud[index];
             SKPoint screen = Project(point.Position, camera);
@@ -31,6 +31,5 @@ public static partial class Renderer
             canvas.DrawCircle(screen, radius, paint);
         }
         canvas.Restore();
-        TileTitle(canvas, font, tile.Name, offsetX, offsetY);
     }
 }
