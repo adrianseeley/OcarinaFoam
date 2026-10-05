@@ -11,13 +11,30 @@ public static class Services
         CommandResult r=Control(args);
         if(r.ExitCode!=0)throw new Exception("systemctl --user "+string.Join(' ',args)+" failed:\n"+r.Output+"\nUse the same login account that ran prepare-machine.sh; do not sudo ocarina.");
     }
+    static readonly Dictionary<string,string> watchers=new();
+    // The watcher is chosen per case by config.json: "systemd" or "supervisord".
+    public static string Watcher(string root)
+    {
+        lock(watchers)
+        {
+            if(!watchers.TryGetValue(root,out string w))watchers[root]=w=Configuration.Load(Path.Combine(root,"config.json")).watcher;
+            return w;
+        }
+    }
+    static bool Supervised(string root)=>Watcher(root)=="supervisord";
+    public static string TryActive(string root,string kind)
+    {
+        try{return Active(root,kind);}catch{return "";}
+    }
     public static string State(string root,string kind)
     {
+        if(Supervised(root))return Supervisor.State(root,kind);
         CommandResult r=Control("show",Paths.Unit(root,kind),"--property=LoadState,ActiveState,SubState,Result,ExecMainStatus","--no-pager");
         return r.ExitCode==0?r.Output.Trim():"systemd unavailable: "+r.Output.Trim();
     }
     public static string Active(string root,string kind)
     {
+        if(Supervised(root))return Supervisor.Active(root,kind);
         CommandResult r=Control("show",Paths.Unit(root,kind),"--property=ActiveState","--value");
         if(r.ExitCode!=0)throw new Exception(r.Output);
         return r.Output.Trim();
@@ -39,17 +56,22 @@ public static class Services
         using(Paths.Lock(root,"build"))
         {
             Config c=Configuration.Built(root);
-            if(!OperatingSystem.IsLinux())throw new Exception("Service commands require Linux and systemd.");
-            Require("show-environment");
+            if(!OperatingSystem.IsLinux())throw new Exception("Service commands require Linux.");
+            bool supervised=c.watcher=="supervisord";
+            if(supervised)Supervisor.Prepare();else Require("show-environment");
             string active=Active(root,kind);
             if(active is not ("active" or "activating"))
             {
                 if(active=="deactivating")throw new Exception("Service is stopping. Wait until stopped, then retry.");
-                Directory.CreateDirectory(UnitDirectory());
-                string file=Path.Combine(UnitDirectory(),Paths.Unit(root,kind));
-                Paths.Atomic(file,UnitText(root,kind));
-                Require("daemon-reload");
-                Require("start",Paths.Unit(root,kind));
+                if(supervised)Supervisor.Start(root,kind);
+                else
+                {
+                    Directory.CreateDirectory(UnitDirectory());
+                    string file=Path.Combine(UnitDirectory(),Paths.Unit(root,kind));
+                    Paths.Atomic(file,UnitText(root,kind));
+                    Require("daemon-reload");
+                    Require("start",Paths.Unit(root,kind));
+                }
             }
         }
         Console.WriteLine(State(root,kind));
@@ -146,6 +168,7 @@ public static class Services
     public static void Stop(string root,string kind)
     {
         using var gate=Paths.Lock(root,"build");
+        if(Supervised(root)){Supervisor.Stop(root,kind);Console.WriteLine(kind+" stopped; program removed. Logs and results retained.");return;}
         Require("show-environment");
         string unit=Paths.Unit(root,kind);
         CommandResult load=Control("show",unit,"--property=LoadState","--value");

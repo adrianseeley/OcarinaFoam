@@ -22,6 +22,7 @@ public class Config
     public int acousticDampingThicknessMillimeters = 250;
     public int acousticDampingStrengthMultiplier = 20;
     public int acousticDampingClearanceMillimeters = 20;
+    public string watcher = "systemd";
     public RenderConfig renderer = null;
     public AudioConfig audio = new AudioConfig();
     public ReportConfig report = new ReportConfig();

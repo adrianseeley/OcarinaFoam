@@ -40,7 +40,7 @@ public static class Configuration
         if (!strict)
         {
             var node = System.Text.Json.Nodes.JsonNode.Parse(text)!.AsObject();
-            foreach (string live in new[] { "renderer", "audio", "report" }) node.Remove(live);
+            foreach (string live in new[] { "watcher", "renderer", "audio", "report" }) node.Remove(live);
             text = node.ToJsonString();
         }
         Config c = JsonSerializer.Deserialize<Config>(text, Json) ?? throw new Exception("Empty config.");
@@ -69,6 +69,7 @@ public static class Configuration
             if (probe.point == null || probe.point.Length != 3 || probe.point.Any(v => !double.IsFinite(v)) || string.IsNullOrWhiteSpace(probe.name) || probe.name.Any(ch => !char.IsAsciiLetterOrDigit(ch) && ch != '_'))
                 throw new Exception("Each probe requires a simple alphanumeric name and three finite coordinates in metres.");
         if (!strict) return c;
+        if (c.watcher is not ("systemd" or "supervisord")) throw new Exception("watcher must be \"systemd\" or \"supervisord\".");
         AudioConfig au = c.audio ?? throw new Exception("audio must not be null.");
         if (au.sampleRateHz < 8000 || au.sampleRateHz > 384000) throw new Exception("audio sampleRateHz must be 8000..384000.");
         Nonnegative(au.highPassHz, "highPassHz"); Nonnegative(au.fadeMilliseconds, "fadeMilliseconds");
@@ -109,7 +110,7 @@ public static class Configuration
         // Renderer controls are read live on restart; physics is frozen in foam/config.json.
         string text = JsonSerializer.Serialize(c, Json);
         using var document = JsonDocument.Parse(text);
-        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name is not ("renderer" or "audio" or "report")).Select(x => x.ToString()));
+        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name is not ("watcher" or "renderer" or "audio" or "report")).Select(x => x.ToString()));
         return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(physical)));
     }
     public static Config Built(string root)
@@ -118,7 +119,7 @@ public static class Configuration
         Config current = Load(Path.Combine(root, "config.json"));
         Config built = Load(Path.Combine(Paths.Foam(root), "config.json"), false);
         if (Fingerprint(current) != Fingerprint(built)) throw new Exception("Physics config changed since build. Use a fresh case directory and build it.");
-        built.renderer = current.renderer; built.audio = current.audio; built.report = current.report;
+        built.watcher = current.watcher; built.renderer = current.renderer; built.audio = current.audio; built.report = current.report;
         return built;
     }
 }

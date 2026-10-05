@@ -10,8 +10,7 @@ public static class BuildCase
         // Check the manager as well as worker locks to close that startup race.
         foreach(string kind in new[]{"simulate","render"})
         {
-            var state=Services.Control("show",Paths.Unit(root,kind),"--property=ActiveState","--value");
-            if(state.ExitCode==0 && state.Output.Trim() is "active" or "activating" or "deactivating")
+            if(Services.TryActive(root,kind) is "active" or "activating" or "deactivating")
                 throw new Exception("Stop "+kind+" before building this case.");
         }
         using var simLock=Paths.Lock(root,"simulate");

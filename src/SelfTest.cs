@@ -36,12 +36,13 @@ public static class SelfTest
         Config c = Configuration.Load(Path.Combine(dir, "config.json"));
         string full = File.ReadAllText(Path.Combine(dir, "config.json"));
         string Without(string key) { var node = System.Text.Json.Nodes.JsonNode.Parse(full, null, new System.Text.Json.JsonDocumentOptions { CommentHandling = System.Text.Json.JsonCommentHandling.Skip }); var path = key.Split('.'); var o = node.AsObject(); for (int i = 0; i < path.Length - 1; i++) o = o[path[i]].AsObject(); o.Remove(path[^1]); string f = Path.Combine(Path.GetTempPath(), "ocarina-cfg-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, node.ToJsonString()); return f; }
-        foreach (string key in new[] { "audio", "report", "audio.highPassHz", "audio.plots.punchWidth", "report.videoCrf", "renderer.pointSizePixels", "probes" })
+        foreach (string key in new[] { "watcher", "audio", "report", "audio.highPassHz", "audio.plots.punchWidth", "report.videoCrf", "renderer.pointSizePixels", "probes" })
         {
             string f = Without(key);
             try { Check(Throws(() => Configuration.Load(f)), "missing config key is an error: " + key); } finally { File.Delete(f); }
         }
         Check(c.report != null, "example report config loads");
+        { string f = Path.Combine(Path.GetTempPath(), "ocarina-watcher-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, full.Replace("\"watcher\": \"systemd\"", "\"watcher\": \"bogus\"")); try { Check(Throws(() => Configuration.Load(f)), "unknown watcher is an error"); } finally { File.Delete(f); } }
         Check(ReportMath.Intermediate(96000, 100000) == 2_400_000 && ReportMath.Relabelled(96000, 100000) == 24 && ReportMath.Intermediate(96000, 3) == 96000, "slowdown ratios are exact integers");
         Check(ReportMath.SlowedRate(c.audio, c.report, 1000) == 8000 && ReportMath.SlowedRate(c.audio, c.report, 2) == 48000, "slowed rate keeps the original content and never drops below the minimum");
         Facet[] solid = Geometry.Read(Path.Combine(dir, "solidBody.stl"));

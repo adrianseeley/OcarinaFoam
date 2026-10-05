@@ -24,18 +24,25 @@ apt-get update
 
 # v2606 supplies rhoPimpleFoam, mesh/surface utilities, libraries and dictionaries.
 # MPI supplies mpirun and distributed solver execution. .NET 10 builds/runs the CLI.
-# git obtains source updates. systemd and its PAM integration provide the user manager;
-# dbus-user-session provides the user bus used by systemctl --user.
-# No Node, fonts, GUI, ParaView, tmux, or alternative process supervisor is required.
-apt-get install -y openfoam2606-default openmpi-bin ffmpeg dotnet-sdk-10.0 git systemd libpam-systemd dbus-user-session
+# git obtains source updates. supervisor is the job watcher for hosts without systemd
+# (containers); systemd hosts use their user manager (systemd, libpam-systemd and
+# dbus-user-session provide it for systemctl --user). Both are installed so either
+# "watcher" value in config.json works. No Node, fonts, GUI or ParaView is required.
+apt-get install -y openfoam2606-default openmpi-bin ffmpeg dotnet-sdk-10.0 git supervisor systemd libpam-systemd dbus-user-session
 
-# Keep this user's manager alive after logout. Units are created on demand by the
-# CLI, not enabled for boot: an operator explicitly starts each simulation/render.
-loginctl enable-linger "$SUDO_USER"
-user_id=$(id -u "$SUDO_USER")
-systemctl start "user@${user_id}.service"
+# Works under sudo or as root (e.g. a container). Only a systemd-booted host has a
+# user manager to keep alive; containers skip this and use "watcher": "supervisord".
+target_user=${SUDO_USER:-$(id -un)}
+if [ -d /run/systemd/system ]; then
+    # Keep this user's manager alive after logout. Units are created on demand by the
+    # CLI, not enabled for boot: an operator explicitly starts each simulation/render.
+    loginctl enable-linger "$target_user"
+    systemctl start "user@$(id -u "$target_user").service"
+else
+    printf '\nNo systemd detected (container). Set "watcher": "supervisord" in each case config.json.\n'
+fi
 
 # A missing installation path is an error, not a reason to select another version.
 test -f /usr/lib/openfoam/openfoam2606/etc/bashrc
 dotnet --list-sdks
-printf '\nPrepared. Log out and SSH in again as %s, then follow the README publish commands.\n' "$SUDO_USER"
+printf '\nPrepared. Log out and SSH in again as %s, then follow the README publish commands.\n' "$target_user"
