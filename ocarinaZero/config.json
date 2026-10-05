@@ -10,8 +10,8 @@
   },
   "backgroundCellSizeMillimeters": 2,
   "surfaceRefinementMinLevel": 3,
-  "surfaceRefinementMaxLevel": 5,
-  "featureRefinementLevel": 5,
+  "surfaceRefinementMaxLevel": 3,
+  "featureRefinementLevel": 3,
   "nCellsBetweenLevels": 3,
   "bodyDistanceRefinement": [
     {
@@ -32,7 +32,7 @@
   "ambientPressureHectopascals": 1013.25,
   "initialTemperatureCelsius": 26.85,
   "deltaTSeconds":  0.0000001,
-  "endTimeSeconds": 3.0000000,
+  "endTimeSeconds": 0.0500000,
   "fieldWriteIntervalTimeSteps": 100,
   "probeWriteIntervalTimeSteps": 1,
   "farFieldRelaxationLengthMeters": 0.1,
@@ -58,7 +58,7 @@
       "spectrumWidth": 2048,
       "waveformWidth": 2048,
       "spectrumHeight": 2048,
-      "waveformPointsPerPlot": 100000,
+      "waveformPointsPerPlot": 1000,
       "punchWidth": 2048,
       "punchHeight": 2048,
       "labelFontPixels": 16,
