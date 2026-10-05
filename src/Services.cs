@@ -74,6 +74,47 @@ public static class Services
         }
         if(errors.Count>0)throw new Exception(string.Join("\n",errors));
     }
+    // Stop services, then return a built case to t=0: keep the mesh, decomposition and initial fields, delete
+    // every result (solver times, probe histories, renders, audio, report) and the solver/render logs.
+    public static void Reset(string root)
+    {
+        StopAll(root);
+        string foam=Paths.Foam(root);
+        if(!File.Exists(Path.Combine(foam,".built")))throw new Exception("Case is not fully built. Run ocarina build DIR first.");
+        using(var gate=Paths.Lock(root,"build"))
+        {
+            var targets=new List<string>();
+            var parts=new List<string>{foam};
+            parts.AddRange(Directory.GetDirectories(foam,"processor*"));
+            foreach(string part in parts)
+            {
+                foreach(string directory in Directory.GetDirectories(part))
+                {
+                    string name=Path.GetFileName(directory);
+                    if(double.TryParse(name,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out double time)&&double.IsFinite(time)&&time>0)targets.Add(directory);
+                }
+                targets.Add(Path.Combine(part,"postProcessing"));
+            }
+            foreach(string name in new[]{"renders","previews","audio","videos","wav",".report-tmp"})targets.Add(Path.Combine(root,name));
+            string logs=Path.Combine(root,"logs");
+            if(Directory.Exists(logs))targets.AddRange(Directory.GetFileSystemEntries(logs).Where(e=>!Path.GetFileName(e).StartsWith("build-")&&Directory.Exists(e)));
+            foreach(string path in targets)
+            {
+                if(!Directory.Exists(path))continue;
+                Directory.Delete(path,true);
+                Console.WriteLine("removed "+path);
+            }
+            var files=new List<string>{Path.Combine(root,"report.html"),Path.Combine(root,"report.zip")};
+            if(Directory.Exists(logs))files.AddRange(Directory.GetFiles(logs));
+            foreach(string path in files)
+            {
+                if(!File.Exists(path))continue;
+                File.Delete(path);
+                Console.WriteLine("removed "+path);
+            }
+        }
+        Console.WriteLine("Reset to t=0. Run ocarina start "+root+" to begin again.");
+    }
     // Stop services, then delete everything generated; inputs (STLs, config.json, model files) stay.
     public static void Clean(string root)
     {

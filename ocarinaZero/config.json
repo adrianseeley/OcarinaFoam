@@ -8,7 +8,7 @@
     "zMin": 0,
     "zMax": 100
   },
-  "backgroundCellSizeMillimeters": 1,
+  "backgroundCellSizeMillimeters": 2,
   "surfaceRefinementMinLevel": 3,
   "surfaceRefinementMaxLevel": 5,
   "featureRefinementLevel": 5,
