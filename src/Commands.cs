@@ -42,6 +42,8 @@ public static class Commands
     public static CommandResult Foam(string directory, string log, string exe, params string[] args)
     {
         if (!File.Exists(Bashrc)) throw new FileNotFoundException("Install OpenCFD OpenFOAM v2606 with prepare-machine.sh.", Bashrc);
+        // Open MPI refuses to run as root (typical in containers) without both confirmations.
+        if (Environment.IsPrivilegedProcess) { Environment.SetEnvironmentVariable("OMPI_ALLOW_RUN_AS_ROOT", "1"); Environment.SetEnvironmentVariable("OMPI_ALLOW_RUN_AS_ROOT_CONFIRM", "1"); }
         string script = "source " + Shell(Bashrc) + " >/dev/null || exit $?; export FOAM_FILEHANDLER=uncollated; exec " + Shell(exe) + " " + string.Join(" ", args.Select(Shell));
         return Run("/bin/bash", directory, new[] { "--noprofile", "--norc", "-c", script }, log, true);
     }
