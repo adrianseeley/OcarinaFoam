@@ -50,11 +50,6 @@ dotnet publish -c Release --no-restore -o "$HOME/.local/share/ocarina"
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$HOME/.local/share/ocarina/ocarina" "$HOME/.local/bin/ocarina"
 export PATH="$HOME/.local/bin:$PATH"
-
-ocarina render stop ocarinaZero
-ocarina render ocarinaZero
-
-ocarina self-test
 ```
 
 Keep `~/.local/bin` on your shell's PATH. Keep the entire publish directory: it

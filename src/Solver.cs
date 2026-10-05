@@ -29,7 +29,14 @@ public static class Solver
         string log=Path.Combine(Paths.Logs(root),"solver-"+DateTime.UtcNow.ToString("yyyyMMddTHHmmssfff")+".log");
         Console.WriteLine("Solver starts from t="+latest+"; log "+log);
         if(c.processorCount==1) Commands.Foam(foam,log,"rhoPimpleFoam");
-        else Commands.Foam(foam,log,"mpirun","-np",c.processorCount.ToString(),"rhoPimpleFoam","-parallel");
+        else
+        {
+            // Open MPI refuses to run as root (typical in containers) unless told otherwise.
+            var mpi=new List<string>();
+            if(Environment.IsPrivilegedProcess)mpi.Add("--allow-run-as-root");
+            mpi.AddRange(new[]{"-np",c.processorCount.ToString(),"rhoPimpleFoam","-parallel"});
+            Commands.Foam(foam,log,"mpirun",mpi.ToArray());
+        }
     }
     // A solver killed mid-write leaves a newest time directory that is missing or has truncated fields.
     // Delete such directories (newest first, on every processor) so the run resumes from the last complete write.

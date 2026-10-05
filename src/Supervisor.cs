@@ -31,7 +31,7 @@ public static class Supervisor
         string socket=Path.Combine(StateDirectory,"supervisor.sock");
         Paths.Atomic(MainConfig,
             "[unix_http_server]\nfile="+Escape(socket)+"\nchmod=0700\n\n"+
-            "[supervisord]\nlogfile="+Escape(Path.Combine(StateDirectory,"supervisord.log"))+"\nlogfile_maxbytes=10MB\npidfile="+Escape(Path.Combine(StateDirectory,"supervisord.pid"))+
+            "[supervisord]\n"+(Environment.IsPrivilegedProcess?"user=root\n":"")+"logfile="+Escape(Path.Combine(StateDirectory,"supervisord.log"))+"\nlogfile_maxbytes=10MB\npidfile="+Escape(Path.Combine(StateDirectory,"supervisord.pid"))+
             "\nchildlogdir="+Escape(StateDirectory)+"\n\n"+
             "[rpcinterface:supervisor]\nsupervisor.rpcinterface_factory=supervisor.rpcinterface:make_main_rpcinterface\n\n"+
             "[supervisorctl]\nserverurl=unix://"+Escape(socket)+"\n\n"+
