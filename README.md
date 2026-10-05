@@ -25,9 +25,24 @@ sudo bash prepare-machine.sh
 ```
 
 For a downloaded source archive, extract it and run the script from that directory.
-The fully commented script installs OpenCFD **v2606**, .NET 10, MPI and systemd user
-session support, then enables lingering for your SSH account. Reconnect over SSH
-after it finishes. Run the following commands as that account, **without sudo**:
+The fully commented script installs OpenCFD **v2606**, .NET 10, MPI, supervisord and
+systemd user session support. It runs on bare-metal/VM Ubuntu and inside Docker
+containers (e.g. Vast.ai) as root or via sudo. On a systemd host it also enables
+lingering for your SSH account; in a container (no systemd) it skips that. Reconnect
+over SSH after it finishes.
+
+### Job watcher
+
+Long-running solver and render jobs are supervised by the `watcher` key in each case's
+`config.json` (required):
+
+- `"systemd"`: per-user systemd units (`systemctl --user`). Use on normal Ubuntu hosts.
+- `"supervisord"`: a private per-user supervisord instance (config in `~/.config/ocarina`,
+  state in `~/.local/state/ocarina`), started automatically on first use. Use in Docker
+  or any host without systemd.
+
+The commands below behave the same with either watcher; "unit" means a systemd unit or
+a supervisord program. Run the following commands as that account, **without sudo**:
 
 ```bash
 dotnet restore --locked-mode
@@ -80,8 +95,8 @@ ocarina check "$HOME/myCase"
 | Command | Behaviour |
 |---|---|
 | `ocarina build DIR` | Hydrate `DIR/foam`, check surfaces, extract features, mesh, check topology/geometry, and decompose for MPI. One logged step at a time; stop at the first failure. |
-| `ocarina simulate DIR` | Create its user service if needed, start if stopped, or attach if running. Follow its logs. |
-| `ocarina simulate stop DIR` | Stop solver and MPI children, clear failure state, remove the unit, reload systemd. Keep logs/results. |
+| `ocarina simulate DIR` | Create its job (unit/program) if needed, start if stopped, or attach if running. Follow its logs. |
+| `ocarina simulate stop DIR` | Stop solver and MPI children, clear failure state, remove the unit, reload the watcher. Keep logs/results. |
 | `ocarina render DIR` | The same lifecycle for the runtime-configured renderer. |
 | `ocarina render preview DIR` | Foreground layout preview at `DIR/previews/layout_VIEW.png`, one per view, using the built solid wireframe; consumes no field history and writes nothing under `renders/`. |
 | `ocarina render stop DIR` | Stop renderer workers and remove its unit. Keep logs/results. |
@@ -155,7 +170,7 @@ Self-tests use tiny synthetic meshes/fields, render real PNGs, and exercise scal
 parsing, output lag, failure handling, completion/recovery, config contracts and
 case protection. They do not run a physical simulation or replace deployment testing.
 See [VALIDATION.md](VALIDATION.md) for the checks run on this revision and the remaining
-Ubuntu/OpenFOAM/systemd acceptance steps.
+Ubuntu/OpenFOAM/watcher acceptance steps.
 
 Original project code, example geometry, documentation and stroke glyphs are offered
 under [CC0](LICENSE). Third-party software retains its own licences; see
