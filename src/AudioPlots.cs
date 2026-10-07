@@ -3,14 +3,14 @@ using SkiaSharp;
 
 public class AudioPlotResult
 {
-    public string SpectrumPath, PunchPath;
+    public string SpectrumPath, OctavePath, PunchPath;
     public string[] WaveformPaths;
     public NoteSpectrum Notes;
     public double BinHz;
     public string Warning;
 }
 
-// spectrum.png (log-frequency FFT with note lines) and punch.png (octave by pitch-class grid) for one probe.
+// spectrum.png (log-frequency FFT), octave.png (folded by octave), and punch.png for one probe.
 public static class AudioPlots
 {
     const int PngLevel = 6;
@@ -48,18 +48,19 @@ public static class AudioPlots
         if (!double.IsFinite(p.displayFloorDbfs) || p.displayFloorDbfs >= 0) throw new Exception("plots.displayFloorDbfs must be finite and negative.");
         if (p.waveformPointsPerPlot < 1000) throw new Exception("plots.waveformPointsPerPlot must be at least 1000.");
         if (p.labelFontPixels < 8 || p.labelFontPixels > 80) throw new Exception("plots.labelFontPixels must be 8..80.");
-        foreach (int d in new[] { p.spectrumWidth, p.waveformWidth, p.spectrumHeight, p.punchWidth, p.punchHeight })
+        foreach (int d in new[] { p.spectrumWidth, p.waveformWidth, p.waveformHeight, p.spectrumHeight, p.punchWidth, p.punchHeight })
             if (d < 400 || d > 16384) throw new Exception("plot dimensions must be 400..16384 pixels.");
-        if ((double)p.spectrumWidth * p.spectrumHeight > MaxPixels || (double)p.punchWidth * p.punchHeight > MaxPixels) throw new Exception("plot images are too large.");
+        if ((double)p.spectrumWidth * p.spectrumHeight > MaxPixels || (double)p.waveformWidth * p.waveformHeight > MaxPixels || (double)p.punchWidth * p.punchHeight > MaxPixels) throw new Exception("plot images are too large.");
         Note[] notes = MusicalNotes.Generate(p.concertAHz, p.minimumOctave, p.maximumOctave);
         if (p.maximumFrequencyHz <= notes[0].Hz) throw new Exception("plots.maximumFrequencyHz must exceed the lowest note.");
         float f = p.labelFontPixels;
         float plotW = p.spectrumWidth - SpectrumLeft(f) - SpectrumRight(f), plotH = p.spectrumHeight - SpectrumTop(f) - SpectrumBottom(f);
         double octaves = Math.Log2(Math.Min(p.maximumFrequencyHz, notes[^1].Hz) / notes[0].Hz);
         // Only C labels are drawn on the joint spectrum, one per octave.
-        if (plotH < 10 * f || plotW <= 0 || plotW / Math.Max(octaves, 1) < LineFont.Width("C9", f) + 0.4f * f
-            || p.waveformWidth - 7 * f - 3 * f <= 0 || p.spectrumHeight - 8.5f * f < 6 * f)
+        if (plotH < 10 * f || plotW <= 0 || plotW / Math.Max(octaves, 1) < LineFont.Width("C9", f) + 0.4f * f)
             throw new Exception("plots spectrum size is too small for the label font; enlarge spectrumWidth/Height or reduce labelFontPixels.");
+        if (p.waveformWidth - 10 * f <= 0 || p.waveformHeight - 8.5f * f < 6 * f)
+            throw new Exception("plots waveform size is too small for the label font; enlarge waveformWidth/Height or reduce labelFontPixels.");
         if (p.punchLabelFontPixels < 6 || p.punchLabelFontPixels > 40) throw new Exception("plots.punchLabelFontPixels must be 6..40.");
         f = p.punchLabelFontPixels;
         int rows = p.maximumOctave - p.minimumOctave + 1;
@@ -74,13 +75,14 @@ public static class AudioPlots
         NoteSpectrum notes = NoteAnalysis.Analyze(samples, fsOut, fsIn, p);
         var result = new AudioPlotResult { Notes = notes, BinHz = binHz };
         string dir = Directory.CreateDirectory(Path.Combine(folder, "plots")).FullName;
-        result.SpectrumPath = Path.Combine(dir, "spectrum.png"); result.PunchPath = Path.Combine(dir, "punch.png");
+        result.SpectrumPath = Path.Combine(dir, "spectrum.png"); result.OctavePath = Path.Combine(dir, "octave.png"); result.PunchPath = Path.Combine(dir, "punch.png");
         string context = $"PROCESSED AUDIO: RESAMPLED TO {N(fsOut, "F0")} HZ, HIGH-PASS {N(a.highPassHz)} HZ, FADE {N(a.fadeMilliseconds)} MS, GAIN APPLIED" +
             (fsIn / 2 < fsOut / 2 ? $", NATIVE NYQUIST {N(fsIn / 2, "F0")} HZ" : "");
         string meta = $"N={notes.SampleCount} SAMPLES, T={N(notes.Duration)} S, 1/T={N(1 / Math.Max(notes.Duration, 1e-300))} HZ, FFT BIN {N(binHz)} HZ, HANN, A4 = {N(p.concertAHz)} HZ";
         result.WaveformPaths = WaveformSegments(Path.Combine(dir, "waveform"), name, new[] { samples }, new[] { Theme.Probe(probe) }, null, fsOut, p, context);
         if (notes.Unresolved > 0) result.Warning = $"SHORT RECORD: ADJACENT NOTES MAY NOT BE RESOLVED ({notes.Unresolved} OF {notes.ValidCount} NOTES CLOSER THAN 2/T)";
-        Render(result.SpectrumPath, name, p.spectrumWidth, p.spectrumHeight, c => DrawOctaveSpectrum(c, p, name, notes, fftDb, binHz, meta, context, result.Warning));
+        Render(result.SpectrumPath, name, p.spectrumWidth, p.spectrumHeight, c => DrawSpectrum(c, p, name, notes, new[] { (fftDb, binHz) }, new[] { Theme.Probe(probe) }, new[] { name }, meta, context, result.Warning));
+        Render(result.OctavePath, name, p.spectrumWidth, p.spectrumHeight, c => DrawOctaveSpectrum(c, p, name, notes, fftDb, binHz, meta, context, result.Warning));
         Render(result.PunchPath, name, p.punchWidth, p.punchHeight, c => DrawPunch(c, p, name, notes, meta, context, result.Warning));
         return result;
     }
@@ -102,7 +104,7 @@ public static class AudioPlots
             double t0 = a / fs, window = points / fs;
             string label = $"{title} WAVEFORM {k + 1} OF {n}";
             paths[k] = Path.Combine(dir, $"{k + 1}_of_{n}.png");
-            Render(paths[k], title, p.waveformWidth, p.spectrumHeight, c => DrawWaveform(c, p, label, part, colors, labels, fs, p.waveformWidth, p.spectrumHeight, context, t0, window));
+            Render(paths[k], title, p.waveformWidth, p.waveformHeight, c => DrawWaveform(c, p, label, part, colors, labels, fs, p.waveformWidth, p.waveformHeight, context, t0, window));
         }
         return paths;
     }

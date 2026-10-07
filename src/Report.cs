@@ -187,6 +187,7 @@ public static class Report
             h.Append("<h3>").Append(E(p)).Append("</h3>\n");
             Segments($"audio/{p}/plots/waveform");
             Img($"audio/{p}/plots/spectrum.png");
+            Img($"audio/{p}/plots/octave.png");
             Img($"audio/{p}/plots/punch.png");
         }
         Pre("Audio log", Path.Combine(root, "audio", "audio.log"));

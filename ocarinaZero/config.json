@@ -56,12 +56,19 @@
       "minimumOctave": 0,
       "maximumOctave": 9,
       "maximumFrequencyHz": 20000,
-      "spectrumWidth": 2048,
-      "waveformWidth": 2048,
-      "spectrumHeight": 2048,
+      
+      "spectrumWidth": 4096,
+      "spectrumHeight": 1024,
+
+      "waveformWidth": 4096,
+      "waveformHeight": 1024,
+
+      
       "waveformPointsPerPlot": 1000,
+
       "punchWidth": 2048,
       "punchHeight": 2048,
+
       "labelFontPixels": 16,
       "punchLabelFontPixels": 10,
       "displayFloorDbfs": -120

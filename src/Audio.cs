@@ -139,7 +139,7 @@ public static class Audio
             {
                 AudioPlotResult plots = AudioPlots.Make(name, s.Normalised, fsOut, fsIn, db, binHz, a, Path.Combine(output, name), p);
                 NoteSpectrum ns = plots.Notes;
-                Log($"plots: {name}/plots/spectrum.png, {name}/plots/punch.png");
+                Log($"plots: {name}/plots/spectrum.png, {name}/plots/octave.png, {name}/plots/punch.png");
                 Log($"notes: {ns.ValidCount} sampled of {ns.Notes.Length} (A4 {a.plots.concertAHz:G} Hz), mode {ns.Mode}, invalid {ns.InvalidCount}, T {ns.Duration:G6} s, fft bin {binHz:G4} Hz, 1/T {1 / ns.Duration:G4} Hz");
                 if (ns.ValidCount > 0 && ns.Mode != NoteMode.TooShort) Log($"note colour range {ns.Low:F2}..{ns.High:F2} dBFS (floor {ns.Floor:G} dBFS); strongest {ns.Notes[ns.StrongestIndex].Name} {Db(ns.Strongest)} dBFS");
                 if (plots.Warning != null) Log("WARNING " + plots.Warning);

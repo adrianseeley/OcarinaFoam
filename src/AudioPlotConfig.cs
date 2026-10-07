@@ -7,6 +7,7 @@ public class AudioPlotConfig
     public double maximumFrequencyHz = 20000;
     public int spectrumWidth = 1280;
     public int waveformWidth = 1280;
+    public int waveformHeight = 720;
     public int spectrumHeight = 720;
     public int punchWidth = 1280;
     public int punchHeight = 720;

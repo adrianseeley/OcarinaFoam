@@ -183,9 +183,12 @@ public static class SelfTest
             try
             {
                 var au = new AudioConfig();
+                au.plots.waveformHeight = 500;
                 double[] db = AudioDsp.Spectrum(tone, fs, out double b2);
                 AudioPlotResult pr = AudioPlots.Make("test_probe", tone, fs, 1e7, db, b2, au, plotDir);
-                Check(new FileInfo(pr.SpectrumPath).Length > 1000 && new FileInfo(pr.PunchPath).Length > 1000, "spectrum.png and punch.png are written");
+                Check(new FileInfo(pr.SpectrumPath).Length > 1000 && new FileInfo(pr.OctavePath).Length > 1000 && new FileInfo(pr.PunchPath).Length > 1000, "spectrum.png, octave.png, and punch.png are written");
+                using (SKBitmap waveform = SKBitmap.Decode(pr.WaveformPaths[0]))
+                    Check(waveform.Height == au.plots.waveformHeight, "waveform height uses plots.waveformHeight");
                 Check(pr.WaveformPaths.Length >= 1 && pr.WaveformPaths.All(x => new FileInfo(x).Length > 500), "one waveform png per segment is written");
                 AudioPlots.MakeJoint(new[] { "a", "b" }, new[] { tone, tone.Take(tone.Length / 2).ToArray() }, new[] { db, db }, new[] { b2, b2 }, fs, 1e7, au, plotDir);
                 AudioPlots.Make("low_rate", tone, fs, 8000, db, b2, au, plotDir);
