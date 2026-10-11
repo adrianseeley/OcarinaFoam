@@ -44,13 +44,13 @@ module voicingHolePositive() {
 }
 
 module voicingEdgePositive() {
-    translate([voicingHoleWidth / 2, voicingHoleY + voicingHoleLength - 1, throatHeight / 2])
+    translate([voicingHoleWidth / 2, voicingHoleY + voicingHoleLength - 0.00001, throatHeight / 2])
     rotate([0, -90, 0])
     linear_extrude(height = voicingHoleWidth)
     polygon([
         [0, 0],
-        [skinThickness + 1, 0],
-        [skinThickness + 1, voicingEdgeLength + 1]
+        [skinThickness + 0.00001, 0],
+        [skinThickness + 0.00001, voicingEdgeLength + 1]
     ]);
 }
 
@@ -92,5 +92,5 @@ module spawnPlane() {
     cube([throatWidth, 1, throatHeight]);
 }
 
-solidBody();
-*spawnPlane();
+*solidBody();
+spawnPlane();
