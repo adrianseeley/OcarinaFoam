@@ -1,0 +1,57 @@
+{
+  "watcher": "systemd",
+  "processorCount": 1,
+  "worldPaddingMillimeters": {
+    "xMin": 0,
+    "xMax": 0,
+    "yMin": 0,
+    "yMax": 0,
+    "zMin": 0,
+    "zMax": 100
+  },
+  "refinement": {
+    "backgroundCellSizeMillimeters": 2,
+    "cellsBetweenLevels": 3,
+    "surface": {
+      "minLevel": 3,
+      "maxLevel": 3
+    },
+    "feature": {
+      "level": 3,
+      "includedAngleDegrees": 150
+    },
+    "bodyDistanceLevelsMillimeters": [10, 5, 2]
+  },
+  "physics": {
+    "inletVelocityMetersPerSecond": 12,
+    "ambientPressureHectopascals": 1013.25,
+    "initialTemperatureCelsius": 26.85,
+    "farFieldRelaxationLengthMeters": 0.1,
+    "damping": {
+      "enabled": true,
+      "targetFrequencyHz": 3000,
+      "thicknessMillimeters": 250,
+      "strengthMultiplier": 20,
+      "clearanceMillimeters": 20
+    }
+  },
+  "deltaT": "000s000ms000us100ns",
+  "lastT": "000s050ms000us000ns",
+  "points": {
+    "keepEvery": 50,
+    "pollMilliseconds": 30000,
+    "compression": "smallest",
+    "mantissaBits": 12,
+    "velocity": true,
+    "temperature": true,
+    "pressure": true,
+    "density": true
+  },
+  "probes": {
+    "throat": [0, 0.025, 0],
+    "mouth": [0, 0.0525, 0.004],
+    "chamberCenter": [0, 0.075, -0.0225],
+    "chamberBack": [0, 0.095, -0.04],
+    "nearMic": [0, 0.075, 0.025]
+  }
+}

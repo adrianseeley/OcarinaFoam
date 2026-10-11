@@ -92,5 +92,5 @@ module spawnPlane() {
     cube([throatWidth, 1, throatHeight]);
 }
 
-*solidBody();
-spawnPlane();
+solidBody();
+*spawnPlane();
