@@ -2,12 +2,6 @@ bin/
 obj/
 **/foam/
 **/.foam-build-*/
-**/renders/
-**/previews/
-**/audio/
+**/points/
 **/logs/
 **/.*.lock
-videos/
-*.zip
-*.html
-wav/

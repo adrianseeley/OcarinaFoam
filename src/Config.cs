@@ -43,12 +43,17 @@ public class Config
     public Padding worldPaddingMillimeters = null;
     public RefinementConfig refinement = null;
     public PhysicsConfig physics = null;
-    public double deltaTSeconds = 1e-07;
-    public double endTimeSeconds = 3.0;
-    public int fieldWriteIntervalTimeSteps = 10;
-    public int probeWriteIntervalTimeSteps = 1;
+    public string deltaT = "000s000ms000us100ns";
+    public string lastT = "003s000ms000us000ns";
     public string watcher = "systemd";
     public PointsConfig points = null;
     public Dictionary<string, double[]> probes = null;
+    public long DeltaNs() => Points.ParseTime(deltaT, "deltaT");
+    public long LastNs() => Points.ParseTime(lastT, "lastT");
+    public int KeepEvery() => points.keepEvery;
+    public long Steps() => LastNs() / DeltaNs();
+    public int Frames() => (int)(Steps() / KeepEvery());
+    // Three extra write intervals so the watcher, which holds back the newest three, still converts lastT.
+    public long EndNs() => LastNs() + 3L * KeepEvery() * DeltaNs();
     public Probe[] ProbeList() => probes.Select(p => new Probe { name = p.Key, point = p.Value }).ToArray();
 }

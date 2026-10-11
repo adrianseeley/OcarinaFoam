@@ -41,15 +41,20 @@ public static class Configuration
         if (!strict)
         {
             var node = System.Text.Json.Nodes.JsonNode.Parse(text)!.AsObject();
-            foreach (string live in new[] { "watcher", "points" }) node.Remove(live);
+            node.Remove("watcher");
             text = node.ToJsonString();
         }
         Config c = JsonSerializer.Deserialize<Config>(text, Json) ?? throw new Exception("Empty config.");
-        if (c.worldPaddingMillimeters == null || (strict && c.points == null) || c.refinement.bodyDistanceLevelsMillimeters == null || c.probes == null)
+        if (c.worldPaddingMillimeters == null || c.refinement.bodyDistanceLevelsMillimeters == null || c.probes == null)
             throw new Exception("Config requires worldPaddingMillimeters, points, bodyDistanceRefinementLevelsMillimeters and probes.");
         Positive(c.processorCount, "processorCount"); Positive(c.refinement.backgroundCellSizeMillimeters, "refinement.backgroundCellSizeMillimeters");
-        Positive(c.deltaTSeconds, "deltaTSeconds"); Positive(c.endTimeSeconds, "endTimeSeconds");
-        Positive(c.fieldWriteIntervalTimeSteps, "fieldWriteIntervalTimeSteps"); Positive(c.probeWriteIntervalTimeSteps, "probeWriteIntervalTimeSteps");
+        long delta = c.DeltaNs(), last = c.LastNs();
+        if (delta <= 0) throw new Exception("deltaT must be positive.");
+        if (c.points == null) throw new Exception("Config requires points.");
+        Positive(c.KeepEvery(), "points.keepEvery");
+        if (last % delta != 0) throw new Exception($"lastT ({c.lastT}) is not a whole number of deltaT ({c.deltaT}) steps, so the solver would never land on it.");
+        if (c.Steps() % c.KeepEvery() != 0) throw new Exception($"lastT is {c.Steps()} steps, not a multiple of points.keepEvery ({c.KeepEvery()}): the last frame would never be written.");
+        if (c.EndNs() >= 999_000_000_000) throw new Exception("lastT plus three guard write intervals must stay below 999 s: point frame names hold three digits of seconds.");
         Positive(c.physics.ambientPressureHectopascals, "physics.ambientPressureHectopascals"); Positive(c.physics.initialTemperatureCelsius + 273.15, "absolute temperature");
         Positive(c.physics.inletVelocityMetersPerSecond, "physics.inletVelocityMetersPerSecond");
         Positive(c.physics.farFieldRelaxationLengthMeters, "physics.farFieldRelaxationLengthMeters");
@@ -79,10 +84,8 @@ public static class Configuration
         PointsConfig pconf = c.points;
         Positive(pconf.pollMilliseconds, "points.pollMilliseconds");
         Points.ParseCompression(pconf.compression);
+        if (pconf.mantissaBits < 1 || pconf.mantissaBits > 23) throw new Exception("points.mantissaBits must be 1..23 (23 is lossless).");
         if (Points.Selected(pconf).Length == 0) throw new Exception("Enable at least one points field.");
-        if (c.endTimeSeconds >= 999) throw new Exception("endTimeSeconds must be below 999: point frame names hold three digits of seconds.");
-        double lastFrame = Math.Ceiling(c.endTimeSeconds / (c.deltaTSeconds * c.fieldWriteIntervalTimeSteps)) + 3;
-        if (!double.IsFinite(lastFrame) || lastFrame > int.MaxValue) throw new Exception("Too many output frames.");
         return c;
     }
     public static void Positive(double value, string name) { if (!double.IsFinite(value) || value <= 0) throw new Exception(name + " must be finite and positive."); }
@@ -92,7 +95,7 @@ public static class Configuration
         // Points controls are read live on restart; physics is frozen in foam/config.json.
         string text = JsonSerializer.Serialize(c, Json);
         using var document = JsonDocument.Parse(text);
-        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name is not ("watcher" or "points")).Select(x => x.ToString()));
+        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name is not ("watcher" or "points")).Select(x => x.ToString()).Append("keepEvery=" + c.points.keepEvery));
         return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(physical)));
     }
     public static Config Built(string root)

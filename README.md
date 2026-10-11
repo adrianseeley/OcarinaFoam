@@ -83,7 +83,7 @@ ocarina clean "$HOME/myCase"
 
 | Command | Behaviour |
 |---|---|
-| `ocarina DIR` | If `DIR/foam/.built` is missing, build first: hydrate `DIR/foam`, check surfaces, extract features, mesh, check topology/geometry, decompose for MPI and write `points/position.bin.gz`, one logged step at a time, stopping at the first failure. The `.built` marker is written last, so a failed build is simply retried by running the command again. Then start the solver and the watcher as detached services (already-running ones are left alone) and report every 30 s: service status, simulation time, frames simulated and written of the total, and percent complete. Ctrl+C stops the monitor only. Exits by itself when both services stop. Run it again after a stop to resume from the last complete solver write. |
+| `ocarina DIR` | If `DIR/foam/.built` is missing, build first: hydrate `DIR/foam`, check surfaces, extract features, mesh, check topology/geometry, decompose for MPI and write `points/position.bin.br`, one logged step at a time, stopping at the first failure. The `.built` marker is written last, so a failed build is simply retried by running the command again. Then start the solver and the watcher as detached services (already-running ones are left alone) and report every 30 s: service status, simulation time, frames simulated and written of the total, and percent complete. Ctrl+C stops the monitor only. Exits by itself when both services stop. Run it again after a stop to resume from the last complete solver write. |
 | `ocarina stop DIR` | Stop the watcher, then the solver, removing both units. Keeps logs/results. |
 | `ocarina clean DIR` | Stop both services, then delete everything generated: `foam/`, `points/`, `logs/`, failed build stages, lock files. Inputs (STLs, `config.json`) stay. |
 
@@ -103,18 +103,25 @@ are rejected rather than silently disagreeing with the generated dictionaries.
 
 - `foam/` — generated dictionaries, metre-scale STLs, static mesh, config snapshot,
   `processorN/` fields when parallel, and `postProcessing/` probe time series.
-- `points/` — the field history in compact binary, all little-endian float32, gzip-compressed:
-  - `position.bin.gz`, written by `ocarina build`: the cell centre of every point as `XYZXYZXYZ...`.
+- `points/` — the field history in compact binary, float32 values, Brotli-compressed (see encoding below):
+  - `position.bin.br`, written by `ocarina build`: the cell centre of every point as `XYZXYZXYZ...`.
     Processor 0's cells come first, then processor 1's, and so on. The mesh never changes,
     so points are never added, removed or moved and no ids are stored.
-  - `SSSsMMMmsUUUusNNNns.bin.gz` (e.g. `000s000ms100us000ns.bin.gz`), one per written time: for each
+  - `SSSsMMMmsUUUusNNNns.bin.br` (e.g. `000s000ms100us000ns.bin.br`), one per written time: for each
     point, in the same order as `position`, the enabled fields back to back. Order
     is velocity (`vX vY vZ`), temperature, pressure, density, skipping any disabled in the `points`
     block of `config.json`, e.g. `vXvYvZ T p` for point 0, then point 1, and so on. That config
     block is the only record of which fields a frame holds, so keep it fixed for a run and
-    delete `points/` frames if you change it. Fields are the raw SI values, not magnitudes.
-  - `points` config keys: `pollMilliseconds`, `compression` (`fastest`, `optimal` or `smallest`),
-    `velocity`, `temperature`, `pressure`, `density`.
+    delete `points/` frames if you change it. Fields are SI values, not magnitudes, except
+    pressure, which is stored as gauge pressure: `p` minus `physics.ambientPressureHectopascals` (in Pa),
+    so acoustic fluctuations keep their precision. Add the ambient back for absolute pressure.
+  - Encoding of every `.bin.br` file: decompress with Brotli to get float32 byte planes, one per
+    (channel, byte index) in channel-major order, each plane holding that byte for every point in point
+    order. Channel c of point i has byte k at `plane[c*4+k][i]` (little-endian), where the channel count is
+    3 for `position` and the enabled field components for a frame. Point order is never changed.
+  - `points` config keys: `keepEvery`, `pollMilliseconds`, `compression` (`fastest`, `optimal` or
+    `smallest`: Brotli quality 4, 9 or 11), `mantissaBits` (23 = lossless; lower rounds each value to that
+    many mantissa bits for much smaller frames), `velocity`, `temperature`, `pressure`, `density`.
 - `foam/postProcessing/acousticProbes/` — probe time series, written by the solver as before (no audio processing).
 - `logs/` — timestamped build steps and solver runs, plus service logs for attaching.
 

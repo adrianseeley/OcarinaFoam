@@ -54,10 +54,9 @@ this snapshot and the case's current points section; it never regenerates code.
 | `physics.inletVelocityMetersPerSecond` | 12; prescribed flow speed, not supply pressure or microphone particle velocity. |
 | `physics.ambientPressureHectopascals` | 1013.25 hPa = 101325 Pa absolute. |
 | `physics.initialTemperatureCelsius` | 26.85 Â°C = 300 K. |
-| `deltaTSeconds` | 1e-7 s; nominal acoustic Courant estimate printed at build. Actual cell sizes matter. |
-| `endTimeSeconds` | Requested duration, 3 s; rounded to a write boundary plus three guard writes. |
-| `fieldWriteIntervalTimeSteps` | 10; at the default dt, full fields every 1 microsecond. This is very large output: about 3 million frame sets for 3 seconds. |
-| `probeWriteIntervalTimeSteps` | 1; independent compact p/U/T sampling every solver step. |
+| `deltaT` | `000s000ms000us100ns` = 1e-7 s step, in the frame-name format; nominal acoustic Courant estimate printed at build. Actual cell sizes matter. |
+| `lastT` | Time of the last frame to produce, same format. Must be a whole number of `deltaT` steps and of `points.keepEvery` steps or the config is rejected. The solver runs three extra write intervals past it so the watcher can convert the last frame. |
+| `points.keepEvery` | Solver writes full fields every this many steps (a fixed part of the build). Probes always sample every step. |
 | `physics.farFieldRelaxationLengthMeters` | 0.1; waveTransmissive relaxation length, not sponge thickness. |
 | `physics.damping.enabled` | true; compare a disabled sponge only as an explicit experiment. |
 | `physics.damping.targetFrequencyHz` | 3000; source-strength scale, not a tuned band-pass filter. |
@@ -75,14 +74,16 @@ field output is sparse. That trades visual time resolution, not solver time reso
 | Key inside `points` | Meaning |
 |---|---|
 | `pollMilliseconds` | Watcher idle interval, 2000 ms by default. |
-| `compression` | `fastest`, `optimal` or `smallest`: gzip effort for `points/` files. |
+| `compression` | `fastest`, `optimal` or `smallest`: Brotli quality 4, 9 or 11 for `points/` files. `smallest` costs roughly 10 s per 15 MB frame for about 2% over `optimal`. |
+| `mantissaBits` | 23 (lossless) down to 1: float32 mantissa bits kept in frames, rounded to nearest. Relative error is about 2^-(bits+1). On a measured 15 MB frame: 23 bits 42%, 16 bits 31%, 12 bits 25%, 10 bits 22%, 8 bits 18% of raw size. Positions are always lossless. Pressure is stored relative to ambient, so the error scales with the fluctuation, not with 101325 Pa. |
 | `velocity`, `temperature`, `pressure`, `density` | Fields written into each frame. At least one is required. |
 
-`ocarina build` writes `points/position.bin.gz`: float32 XYZ cell centres, processor 0's cells
-first, then processor 1's, and so on. The watcher writes one `points/SSSsMMMmsUUUusNNNns.bin.gz` per
+`ocarina build` writes `points/position.bin.br`: float32 XYZ cell centres, processor 0's cells
+first, then processor 1's, and so on. The watcher writes one `points/SSSsMMMmsUUUusNNNns.bin.br` per
 raw time: per point (same order), float32 values of the enabled fields in the fixed order velocity
 (vX vY vZ), temperature, pressure, density. The `points` block of `config.json` is the only record of
-the layout; do not change it mid-run. Velocity is the full vector, pressure is absolute, and values are
+the layout; do not change it mid-run. Velocity is the full vector, pressure is gauge (`p` minus
+`physics.ambientPressureHectopascals` converted to Pa, subtracted in double precision), and the other values are
 raw SI. Derive acoustic fluctuations from numerical probes.
 
 Each frame is compressed to a temporary file and renamed, so a frame file is never partial. Raw time t

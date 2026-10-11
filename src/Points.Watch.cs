@@ -5,7 +5,7 @@ public static partial class Points
     public static void Watch()
     {
         if (Fields.Length == 0) throw new InvalidOperationException("Enable at least one points field.");
-        if (!File.Exists(Path.Combine(OutputDirectory, "position.bin.gz"))) throw new FileNotFoundException("points/position.bin.gz is missing; build the case first.");
+        if (!File.Exists(Path.Combine(OutputDirectory, "position.bin.br"))) throw new FileNotFoundException("points/position.bin.br is missing; build the case first.");
         string[] processors = FindProcessors();
         int[] offsets = Offsets(processors);
         Console.WriteLine("Watching " + CaseDirectory + "; keeping " + UntouchedTimes + " newer times; " + offsets[^1] + " points; fields " + string.Join(",", Fields.Select(f => f.Name)));
@@ -28,10 +28,10 @@ public static partial class Points
             foreach (Layout field in Fields)
             {
                 int at = slot;
-                Parallel.For(0, processors.Length, p => ReadField(Path.Combine(processors[p], time, field.File), field.Vector, frame, offsets[p], offsets[p + 1] - offsets[p], stride, at));
+                Parallel.For(0, processors.Length, p => ReadField(Path.Combine(processors[p], time, field.File), field.Vector, frame, offsets[p], offsets[p + 1] - offsets[p], stride, at, field.File == "p" ? AmbientPressure : 0));
                 slot += field.Vector ? 3 : 1;
             }
-            WriteFloats(FramePath(time), frame);
+            WriteFloats(FramePath(time), frame, Stride, MantissaBits);
             Console.WriteLine("Wrote " + FrameName(time) + " (t=" + time + ")");
             frame = null;
             Collect();

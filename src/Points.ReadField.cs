@@ -9,9 +9,9 @@ public static partial class Points
     // Read internalField only: uniform or nonuniform List<scalar>/List<vector>,
     // including a repeated brace value. Require count agreement and finite values.
     // Each cell's components are written into the interleaved frame at
-    // (cell * stride + slot); vectors keep all three components.
+    // (cell * stride + slot); vectors keep all three components. A scalar has `bias` subtracted.
     // BoundaryField is skipped; binary, collated and arbitrary dictionary/include syntax are outside this parser.
-    public static void ReadField(string path, bool vector, float[] frame, int offset, int count, int stride, int slot)
+    public static void ReadField(string path, bool vector, float[] frame, int offset, int count, int stride, int slot, double bias = 0)
     {
         using StreamReader reader = OpenText(path);
         Tokens tokens = new Tokens { Reader = reader };
@@ -49,7 +49,8 @@ public static partial class Points
             }
             else
             {
-                value[0] = (float)Number(tokens);
+                // Subtracted in double precision before narrowing, so offset fields keep their small differences.
+                value[0] = (float)(Number(tokens) - bias);
             }
             for (int k = 0; k < (vector ? 3 : 1); k++)
             {

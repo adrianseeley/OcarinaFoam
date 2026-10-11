@@ -1,9 +1,12 @@
 using System.IO.Compression;
 
-// Cell-centre positions are written once at build time (points/position.bin.gz: XYZXYZ... as float32).
-// The watcher then turns each raw OpenFOAM write into points/SSSsMMMmsUUUusNNNns.bin.gz: for every point in
+// Cell-centre positions are written once at build time (points/position.bin.br: XYZXYZ... as float32).
+// The watcher then turns each raw OpenFOAM write into points/SSSsMMMmsUUUusNNNns.bin.br: for every point in
 // the same order, the enabled fields' float32 components back to back (see PointsConfig). The mesh never
 // changes, so no ids are stored.
+// File encoding: the float32 array (point-major, channels interleaved) is byte-shuffled into planes, one per
+// (channel, byte index), channel-major, then Brotli compressed. Shuffling only regroups bytes, so point
+// order is untouched and decoding is exact; with mantissaBits < 23 the low mantissa bits are rounded away first.
 public static partial class Points
 {
     public const int UntouchedTimes = 3;
@@ -11,9 +14,13 @@ public static partial class Points
     public static string OutputDirectory = "";
     public static int ProcessorCount = 0;
     public static int PollMilliseconds = 0;
-    public static CompressionLevel Compression = CompressionLevel.Optimal;
+    public static int Quality = 9;
+    public static int MantissaBits = 23;
+    public const int Window = 24;
 
     public class Layout { public string File; public bool Vector; public string Name; }
+    // Pressure is stored as p minus this (Pa), set from physics.ambientPressureHectopascals; see Configure.
+    public static double AmbientPressure = 0;
 
     // Fixed order; the bytes of a frame follow this list filtered by config.
     public static Layout[] Fields = Array.Empty<Layout>();
@@ -31,16 +38,16 @@ public static partial class Points
         return all.Where(a => a.On).Select(a => a.Field).ToArray();
     }
 
-    public static CompressionLevel ParseCompression(string name) => name switch
+    public static int ParseCompression(string name) => name switch
     {
-        "fastest" => CompressionLevel.Fastest,
-        "optimal" => CompressionLevel.Optimal,
-        "smallest" => CompressionLevel.SmallestSize,
+        "fastest" => 4,
+        "optimal" => 9,
+        "smallest" => 11,
         _ => throw new Exception("points.compression must be \"fastest\", \"optimal\" or \"smallest\".")
     };
 
     public static string PointsDirectory(string root) => Path.Combine(root, "points");
-    public static string PositionFile(string root) => Path.Combine(PointsDirectory(root), "position.bin.gz");
+    public static string PositionFile(string root) => Path.Combine(PointsDirectory(root), "position.bin.br");
 
     public static void Configure(string root, Config c)
     {
@@ -48,9 +55,22 @@ public static partial class Points
         OutputDirectory = PointsDirectory(root);
         ProcessorCount = c.processorCount;
         PollMilliseconds = c.points.pollMilliseconds;
-        Compression = ParseCompression(c.points.compression);
+        Quality = ParseCompression(c.points.compression);
+        MantissaBits = c.points.mantissaBits;
+        AmbientPressure = c.physics.ambientPressureHectopascals * 100;
         Fields = Selected(c.points);
     }
+
+    // Parses 000s000ms000us000ns into nanoseconds.
+    public static long ParseTime(string text, string name)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(text ?? "", @"^(\d{3})s(\d{3})ms(\d{3})us(\d{3})ns$");
+        if (!m.Success) throw new Exception($"{name} must look like 000s000ms000us000ns, got '{text}'.");
+        long Part(int i) => long.Parse(m.Groups[i].Value, System.Globalization.CultureInfo.InvariantCulture);
+        return Part(1) * 1_000_000_000 + Part(2) * 1_000_000 + Part(3) * 1000 + Part(4);
+    }
+    // Nanoseconds as plain decimal seconds for OpenFOAM, never exponent notation.
+    public static string Seconds(long ns) => (ns / 1_000_000_000m).ToString("0.0#########", System.Globalization.CultureInfo.InvariantCulture);
 
     // Frame file stem from an OpenFOAM time name, exact to the nanosecond: 000s000ms000us000ns.
     public static string FrameName(string time)
@@ -59,27 +79,74 @@ public static partial class Points
         long n = (long)ns;
         return $"{n / 1_000_000_000:D3}s{n / 1_000_000 % 1000:D3}ms{n / 1000 % 1000:D3}us{n % 1000:D3}ns";
     }
-    public static string FramePath(string time) => Path.Combine(OutputDirectory, FrameName(time) + ".bin.gz");
+    public static string FramePath(string time) => Path.Combine(OutputDirectory, FrameName(time) + ".bin.br");
     public static bool IsComplete(string time) => File.Exists(FramePath(time));
 
     public static int FrameCount(string directory)
     {
         if (!Directory.Exists(directory)) return 0;
-        return Directory.EnumerateFiles(directory, "*s*ms*us*ns.bin.gz").Count();
+        return Directory.EnumerateFiles(directory, "*s*ms*us*ns.bin.br").Count();
+    }
+
+    // Round to the nearest value keeping only `bits` of the 23 mantissa bits.
+    static float Reduce(float v, int bits)
+    {
+        if (bits >= 23 || !float.IsFinite(v)) return v;
+        int drop = 23 - bits;
+        uint u = BitConverter.SingleToUInt32Bits(v);
+        u = (u + (1u << (drop - 1))) & ~((1u << drop) - 1);
+        float r = BitConverter.UInt32BitsToSingle(u);
+        return float.IsFinite(r) ? r : v;
+    }
+
+    static byte[] Shuffle(float[] values, int channels, int mantissaBits)
+    {
+        int points = values.Length / channels;
+        byte[] planes = new byte[values.Length * 4];
+        Parallel.For(0, channels, c =>
+        {
+            for (int i = 0; i < points; i++)
+            {
+                uint u = BitConverter.SingleToUInt32Bits(Reduce(values[i * channels + c], mantissaBits));
+                for (int k = 0; k < 4; k++) planes[((long)(c * 4 + k)) * points + i] = (byte)(u >> (8 * k));
+            }
+        });
+        return planes;
     }
 
     // Compress to a temporary file, then rename, so readers never see a partial frame.
-    public static void WriteFloats(string path, float[] values)
+    public static void WriteFloats(string path, float[] values, int channels, int mantissaBits)
     {
+        if (values.Length % channels != 0) throw new ArgumentException("value count is not a multiple of the channel count");
+        byte[] planes = Shuffle(values, channels, mantissaBits);
+        byte[] packed = new byte[System.IO.Compression.BrotliEncoder.GetMaxCompressedLength(planes.Length)];
+        if (!System.IO.Compression.BrotliEncoder.TryCompress(planes, packed, out int length, Quality, Window)) throw new IOException("Brotli compression failed.");
         Directory.CreateDirectory(Path.GetDirectoryName(path));
         string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
         {
-            using (var gzip = new GZipStream(file, Compression, true))
-                gzip.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()));
+            file.Write(packed, 0, length);
             file.Flush(true);
         }
         File.Move(temporary, path, true);
+    }
+
+    // Exact inverse of the encoding above (up to the mantissa reduction chosen at write time).
+    public static float[] ReadFloats(string path, int channels)
+    {
+        var planes = new MemoryStream();
+        using (var br = new BrotliStream(File.OpenRead(path), CompressionMode.Decompress)) br.CopyTo(planes);
+        byte[] b = planes.ToArray();
+        int count = b.Length / 4, points = count / channels;
+        var values = new float[count];
+        for (int c = 0; c < channels; c++)
+            for (int i = 0; i < points; i++)
+            {
+                uint u = 0;
+                for (int k = 0; k < 4; k++) u |= (uint)b[((long)(c * 4 + k)) * points + i] << (8 * k);
+                values[i * channels + c] = BitConverter.UInt32BitsToSingle(u);
+            }
+        return values;
     }
 
     // Fully parse a field file; throws if it is truncated or malformed.
@@ -105,7 +172,7 @@ public static partial class Points
             Collect();
         }
         string target = PositionFile(root);
-        WriteFloats(target, positions);
+        WriteFloats(target, positions, 3, 23);
         return offsets[^1];
     }
 }

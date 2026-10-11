@@ -22,7 +22,7 @@ public static class BuildCase
         {
             bool results=Directory.EnumerateDirectories(foam,"processor*").Any(p=>Points.Times(p,out _).Length>0)
                 || Points.Times(foam,out _).Length>0 || Directory.Exists(Path.Combine(foam,"postProcessing"))
-                || (Directory.Exists(Points.PointsDirectory(root)) && Directory.EnumerateFiles(Points.PointsDirectory(root)).Any(f=>Path.GetFileName(f)!="position.bin.gz"));
+                || (Directory.Exists(Points.PointsDirectory(root)) && Directory.EnumerateFiles(Points.PointsDirectory(root)).Any(f=>Path.GetFileName(f)!="position.bin.br"));
             if(results)throw new Exception("This case contains results. Build a new case directory; existing results are never erased by build.");
             if(!File.Exists(Path.Combine(foam,".ocarina"))) throw new Exception("Refusing to replace an unowned foam directory.");
         }
@@ -73,18 +73,16 @@ public static class BuildCase
         const double molWeight=28.9, cv=712, gasConstant=8314.46261815324;
         Set("AIR_CV",cv);Set("AIR_MOL_WEIGHT",molWeight);Set("AIR_GAMMA",1+gasConstant/molWeight/cv);
         Set("DAMPING_STRENGTH_MULTIPLIER",c.physics.damping.strengthMultiplier);Set("DAMPING_TARGET_FREQUENCY",c.physics.damping.targetFrequencyHz);
-        Set("DELTA_T",c.deltaTSeconds);
-        double interval=c.deltaTSeconds*c.fieldWriteIntervalTimeSteps;
-        // Round up to an output boundary, then append exactly three guard writes.
-        Set("END_TIME",(Math.Ceiling(c.endTimeSeconds/interval-1e-9)+3)*interval);
-        Set("FAR_FIELD_RELAXATION_LENGTH",c.physics.farFieldRelaxationLengthMeters);Set("FIELD_WRITE_INTERVAL",c.fieldWriteIntervalTimeSteps);
+        v["DELTA_T"]=Points.Seconds(c.DeltaNs());
+        v["END_TIME"]=Points.Seconds(c.EndNs());
+        Set("FAR_FIELD_RELAXATION_LENGTH",c.physics.farFieldRelaxationLengthMeters);Set("FIELD_WRITE_INTERVAL",c.KeepEvery());
         Set("FEATURE_INCLUDED_ANGLE_DEGREES",c.refinement.feature.includedAngleDegrees);Set("FEATURE_REFINEMENT_LEVEL",c.refinement.feature.level);
         Set("N_CELLS_BETWEEN_LEVELS",c.refinement.cellsBetweenLevels);Set("INITIAL_PRESSURE",c.physics.ambientPressureHectopascals*100);
         Set("INITIAL_TEMPERATURE",c.physics.initialTemperatureCelsius+273.15);Set("INLET_VELOCITY",c.physics.inletVelocityMetersPerSecond);
-        Set("PROCESSOR_COUNT",c.processorCount);Set("PROBE_WRITE_INTERVAL",c.probeWriteIntervalTimeSteps);
+        Set("PROCESSOR_COUNT",c.processorCount);
         Set("SURFACE_REFINEMENT_MAX_LEVEL",c.refinement.surface.maxLevel);Set("SURFACE_REFINEMENT_MIN_LEVEL",c.refinement.surface.minLevel);
         v["PROBE_LOCATIONS"]=string.Join('\n',c.ProbeList().Select(p=>"            ("+Geometry.Point(p.point)+") // "+p.name));
-        v["DISTANCE_REFINEMENT_REGIONS"]="solidWalls\n{\n mode distance;\n levels\n(\n"+string.Join('\n',c.refinement.bodyDistanceLevelsMillimeters.Select((d,i)=>"("+Geometry.Number(d*.001)+" "+(i+1)+")"))+"\n);\n}";
+        v["DISTANCE_REFINEMENT_REGIONS"]="solidWalls\n{\n mode distance;\n levels\n(\n"+string.Join('\n',c.refinement.bodyDistanceLevelsMillimeters.Select((d,i)=>"("+Geometry.Number(d*.001)+" "+(i+1)+")").Reverse())+"\n);\n}";
         string template=Path.Combine(AppContext.BaseDirectory,"foamTemplate");
         if(!Directory.Exists(template))throw new DirectoryNotFoundException("Publish output is missing foamTemplate: "+template);
         Directory.CreateDirectory(output);
@@ -102,6 +100,6 @@ public static class BuildCase
         File.WriteAllText(Path.Combine(output,".ocarina"),"beta-1\n");File.WriteAllText(Path.Combine(output,"case.foam"),"");
         double sound=Math.Sqrt((1+gasConstant/molWeight/cv)*gasConstant/molWeight*(c.physics.initialTemperatureCelsius+273.15));
         double nominal=c.refinement.backgroundCellSizeMillimeters*.001/Math.Pow(2,Math.Max(c.refinement.feature.level,c.refinement.surface.maxLevel));
-        Console.WriteLine($"Nominal smallest surface cell {nominal:G5} m; estimated acoustic Courant {sound*c.deltaTSeconds/nominal:G5}. Actual snapped cells may be smaller.");
+        Console.WriteLine($"Nominal smallest surface cell {nominal:G5} m; estimated acoustic Courant {sound*(c.DeltaNs()/1e9)/nominal:G5}. Actual snapped cells may be smaller.");
     }
 }

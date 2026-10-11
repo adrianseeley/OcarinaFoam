@@ -8,8 +8,8 @@ public static class Progress
     public static void Run(string root)
     {
         Config c = Configuration.Built(root);
-        double interval = c.deltaTSeconds * c.fieldWriteIntervalTimeSteps;
-        int total = (int)(Math.Ceiling(c.endTimeSeconds / interval - 1e-9) + 3);
+        double interval = c.DeltaNs() * 1e-9 * c.KeepEvery();
+        int total = c.Frames();
         bool detach = false;
         ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; detach = true; };
         Console.CancelKeyPress += cancel;
@@ -19,7 +19,7 @@ public static class Progress
             while (!detach)
             {
                 double written_t = SimulatedTime(root, c);
-                int simulated = (int)Math.Round(written_t / interval, MidpointRounding.AwayFromZero);
+                int simulated = Math.Min(total, (int)Math.Round(written_t / interval, MidpointRounding.AwayFromZero));
                 double time = Math.Max(written_t, LogTime(root));
                 int written = Points.FrameCount(Points.PointsDirectory(root));
                 string sim = Active(root, "simulate"), watch = Active(root, "watch");

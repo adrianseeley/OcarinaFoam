@@ -20,6 +20,14 @@ public static class SelfTest
             try { Check(Throws(() => Configuration.Load(f)), "missing config key is an error: " + key); } finally { File.Delete(f); }
         }
         Check(c.points != null, "example points config loads");
+        Check(Points.ParseTime("000s000ms000us100ns", "t") == 100 && Points.Seconds(100) == "0.0000001" && Points.Seconds(50_000_000) == "0.05", "time strings parse and print without exponent");
+        Check(c.Steps() == 500000 && c.Frames() == 5000 && Points.Seconds(c.EndNs()) == "0.05003", "example timing: 500000 steps, 5000 frames, three guard writes");
+        foreach (var (what, from, to) in new[] { ("lastT off the step grid", "\"lastT\": \"000s050ms000us000ns\"", "\"lastT\": \"000s050ms000us050ns\""), ("lastT not a multiple of keepEvery", "\"keepEvery\": 100", "\"keepEvery\": 7"), ("malformed time", "\"deltaT\": \"000s000ms000us100ns\"", "\"deltaT\": \"1e-7\"") })
+        {
+            Check(full.Contains(from), "timing mutation applies: " + what);
+            string f = Path.Combine(Path.GetTempPath(), "ocarina-time-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, full.Replace(from, to));
+            try { Check(Throws(() => Configuration.Load(f)), "rejected: " + what); } finally { File.Delete(f); }
+        }
         { string f = Path.Combine(Path.GetTempPath(), "ocarina-watcher-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, full.Replace("\"watcher\": \"systemd\"", "\"watcher\": \"bogus\"")); try { Check(Throws(() => Configuration.Load(f)), "unknown watcher is an error"); } finally { File.Delete(f); } }
         Facet[] solid = Geometry.Read(Path.Combine(dir, "solidBody.stl"));
         Facet[] inlet = Geometry.Inlet(Geometry.Read(Path.Combine(dir, "spawnPlane.stl")));
@@ -96,12 +104,12 @@ public static class SelfTest
                 File.WriteAllText(Path.Combine(mesh, "faces"), header + "6\n(\n4(0 3 2 1)\n4(4 5 6 7)\n4(0 1 5 4)\n4(1 2 6 5)\n4(2 3 7 6)\n4(3 0 4 7)\n)\n");
                 File.WriteAllText(Path.Combine(mesh, "owner"), header + "6\n(\n0\n0\n0\n0\n0\n0\n)\n");
                 File.WriteAllText(Path.Combine(mesh, "neighbour"), header + "0\n(\n)\n");
-                Points.Compression = System.IO.Compression.CompressionLevel.Fastest;
+                Points.Quality = Points.ParseCompression("fastest");
                 Check(Points.WritePositions(root, foam, 1) == 1, "build writes one position per cell");
-                float[] position = new float[3];
-                using (var g = new System.IO.Compression.GZipStream(File.OpenRead(Points.PositionFile(root)), System.IO.Compression.CompressionMode.Decompress)) g.ReadExactly(System.Runtime.InteropServices.MemoryMarshal.AsBytes(position.AsSpan()));
+                float[] position = Points.ReadFloats(Points.PositionFile(root), 3);
                 Check(position.All(v => Math.Abs(v - 1f) < 1e-6f), "cell centre is the volume centroid");
                 Points.OutputDirectory = Points.PointsDirectory(root); Points.CaseDirectory = foam; Points.ProcessorCount = 1;
+                Points.AmbientPressure = 101000;
                 Points.Fields = Points.Selected(new PointsConfig { velocity = true, temperature = false, pressure = true, density = false });
                 foreach (string t in new[] { "0.0001", "0.0002", "0.0003", "0.0004", "0.0005" })
                 {
@@ -114,17 +122,18 @@ public static class SelfTest
                 Check(ready.SequenceEqual(new[] { "0.0001", "0.0002" }), "only times with three newer ones are ready");
                 Points.Process(procs, Points.Offsets(procs), ready[0]);
                 Check(!Directory.Exists(Path.Combine(foam, "0.0001")) && Directory.Exists(Path.Combine(foam, "0.0002")), "processed time is deleted, others kept");
-                float[] one = new float[4];
-                using (var g = new System.IO.Compression.GZipStream(File.OpenRead(Path.Combine(Points.OutputDirectory, "000s000ms100us000ns.bin.gz")), System.IO.Compression.CompressionMode.Decompress)) g.ReadExactly(System.Runtime.InteropServices.MemoryMarshal.AsBytes(one.AsSpan()));
-                Check(one.SequenceEqual(new float[] { 0.0001f, 0f, -1f, 101325f }), "frame holds vX vY vZ then pressure");
-                Check(Points.FrameCount(Points.OutputDirectory) == 1, "frame count ignores position.bin.gz");
-                float[] path = new float[] { 1.5f, -2f, 3f };
-                Points.Compression = System.IO.Compression.CompressionLevel.Fastest;
-                string gz = Path.Combine(tmp, "x.bin.gz");
-                Points.WriteFloats(gz, path);
-                using var read = new System.IO.Compression.GZipStream(File.OpenRead(gz), System.IO.Compression.CompressionMode.Decompress);
-                byte[] raw = new byte[12]; read.ReadExactly(raw);
-                Check(raw.SequenceEqual(System.Runtime.InteropServices.MemoryMarshal.AsBytes(path.AsSpan()).ToArray()), "frames round-trip as raw float32");
+                float[] one = Points.ReadFloats(Path.Combine(Points.OutputDirectory, "000s000ms100us000ns.bin.br"), 4);
+                Check(one.SequenceEqual(new float[] { 0.0001f, 0f, -1f, 325f }), "frame holds vX vY vZ then gauge pressure (p minus ambient)");
+                Check(Points.FrameCount(Points.OutputDirectory) == 1, "frame count ignores position.bin.br");
+                var rng = new Random(7);
+                float[] noisy = Enumerable.Range(0, 3000).Select(_ => (float)(rng.NextDouble() * 200 - 100)).ToArray();
+                string br = Path.Combine(tmp, "x.bin.br");
+                Points.WriteFloats(br, noisy, 6, 23);
+                Check(Points.ReadFloats(br, 6).SequenceEqual(noisy), "frames round-trip bit-exactly at 23 mantissa bits, order preserved");
+                long fullSize = new FileInfo(br).Length;
+                Points.WriteFloats(br, noisy, 6, 10);
+                float[] coarse = Points.ReadFloats(br, 6);
+                Check(new FileInfo(br).Length < fullSize && coarse.Zip(noisy, (a, b) => Math.Abs(a - b) <= Math.Abs(b) * 0.001f).All(x => x), "reduced mantissa bits shrink the file within the stated precision");
             }
             finally { Directory.Delete(tmp, true); }
         }

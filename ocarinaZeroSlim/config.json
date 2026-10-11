@@ -35,13 +35,13 @@
       "clearanceMillimeters": 20
     }
   },
-  "deltaTSeconds": 0.0000001,
-  "endTimeSeconds": 0.0500000,
-  "fieldWriteIntervalTimeSteps": 100,
-  "probeWriteIntervalTimeSteps": 1,
+  "deltaT": "000s000ms000us100ns",
+  "lastT": "000s050ms000us000ns",
   "points": {
-    "pollMilliseconds": 2000,
-    "compression": "optimal",
+    "keepEvery": 10,
+    "pollMilliseconds": 30000,
+    "compression": "smallest",
+    "mantissaBits": 12,
     "velocity": true,
     "temperature": true,
     "pressure": true,
