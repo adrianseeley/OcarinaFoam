@@ -1,0 +1,153 @@
+﻿{
+  "watcher": "systemd",
+  "processorCount": 6,
+  "worldPaddingMillimeters": {
+    "xMin": 0,
+    "xMax": 0,
+    "yMin": 0,
+    "yMax": 0,
+    "zMin": 0,
+    "zMax": 100
+  },
+  "backgroundCellSizeMillimeters": 2,
+  "surfaceRefinementMinLevel": 3,
+  "surfaceRefinementMaxLevel": 3,
+  "featureRefinementLevel": 3,
+  "nCellsBetweenLevels": 3,
+  "bodyDistanceRefinement": [
+    {
+      "distanceMillimeters": 10,
+      "level": 1
+    },
+    {
+      "distanceMillimeters": 5,
+      "level": 2
+    },
+    {
+      "distanceMillimeters": 2,
+      "level": 3
+    }
+  ],
+  "featureIncludedAngleDegrees": 150,
+  "inletVelocityMetersPerSecond": 12,
+  "ambientPressureHectopascals": 1013.25,
+  "initialTemperatureCelsius": 26.85,
+  "deltaTSeconds":  0.0000001,
+  "endTimeSeconds": 0.0500000,
+  "fieldWriteIntervalTimeSteps": 100,
+  "probeWriteIntervalTimeSteps": 1,
+  "farFieldRelaxationLengthMeters": 0.1,
+  "acousticDampingEnabled": true,
+  "acousticDampingTargetFrequencyHz": 3000,
+  "acousticDampingThicknessMillimeters": 250,
+  "acousticDampingStrengthMultiplier": 20,
+  "acousticDampingClearanceMillimeters": 20,
+  "audio": {
+    "sampleRateHz": 96000,
+    "highPassHz": 2,
+    "fadeMilliseconds": 0,
+    "peakTargetDbfs": -1,
+    "sharedGain": false,
+    "kernelZeroCrossings": 48,
+    "kaiserBeta": 10,
+    "plots": {
+      "enabled": true,
+      "concertAHz": 440,
+      "minimumOctave": 0,
+      "maximumOctave": 9,
+      "maximumFrequencyHz": 20000,
+      
+      "spectrumWidth": 4096,
+      "spectrumHeight": 1024,
+
+      "waveformWidth": 4096,
+      "waveformHeight": 1024,
+
+      
+      "waveformPointsPerPlot": 1000,
+
+      "punchWidth": 2048,
+      "punchHeight": 2048,
+
+      "labelFontPixels": 16,
+      "punchLabelFontPixels": 10,
+      "displayFloorDbfs": -120
+    }
+  },
+  "report": {
+    "slowdowns": [1, 2, 3, 4, 5, 10, 20, 30, 40, 50, 100],
+    "framesPerSecond": 30,
+    "videoLongSidePixels": 1920,
+    "videoCrf": 12,
+    "slowedAudioMinimumSampleRateHz": 8000
+  },
+  "renderer": {
+    "renderThreads": 6,
+    "pollMilliseconds": 2000,
+    "pngCompressionLevel": 6,
+    "plotWidth": 2048,
+    "plotHeight": 2048,
+    "marginPixels": 20,
+    "labelFontPixels": 32,
+    "backgroundColor": "#050505",
+    "labelColor": "#FAFAFA",
+    "pointSizePixels": 3,
+    "cameraPaddingFraction": 0.2,
+    "minimumAlpha": 0.01,
+    "renderPressure": true,
+    "renderVelocityMagnitude": true,
+    "renderDensity": true,
+    "renderTemperature": true,
+    "views": [
+      { "name": "Xp", "from": [1, 0, 0], "up": [0, 0, 1] },
+      { "name": "Xp-Zp-30", "from": [0.866025, 0, 0.5], "up": [-0.5, 0, 0.866025] },
+      { "name": "Xp-Zp-60", "from": [0.5, 0, 0.866025], "up": [-0.866025, 0, 0.5] },
+      { "name": "Zp", "from": [0, 0, 1], "up": [-1, 0, 0] },
+      { "name": "Hole-XpYpZp", "from": [1, 1, 1], "targetMillimeters": [0, 52.5, 10], "zoom": 3 },
+      { "name": "Hole-Xp", "from": [1, 0, 0], "targetMillimeters": [0, 52.5, 10], "zoom": 3 },
+      { "name": "Hole-Yn", "from": [0, -1, 0], "targetMillimeters": [0, 52.5, 10], "zoom": 3 }
+    ]
+  },
+  "probes": [
+    {
+      "name": "throat",
+      "point": [
+        0,
+        0.025,
+        0
+      ]
+    },
+    {
+      "name": "mouth",
+      "point": [
+        0,
+        0.0525,
+        0.004
+      ]
+    },
+    {
+      "name": "chamberCenter",
+      "point": [
+        0,
+        0.075,
+        -0.0225
+      ]
+    },
+    {
+      "name": "chamberBack",
+      "point": [
+        0,
+        0.095,
+        -0.04
+      ]
+    },
+    {
+      "name": "nearMic",
+      "point": [
+        0,
+        0.075,
+        0.025
+      ]
+    }
+  ]
+}

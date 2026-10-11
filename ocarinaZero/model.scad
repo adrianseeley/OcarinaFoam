@@ -46,7 +46,7 @@ module voicingHolePositive() {
 module voicingEdgePositive() {
     translate([voicingHoleWidth / 2, voicingHoleY + voicingHoleLength - 1, throatHeight / 2])
     rotate([0, -90, 0])
-    linear_extrude(height = voicingHoleHeight)
+    linear_extrude(height = voicingHoleWidth)
     polygon([
         [0, 0],
         [skinThickness + 1, 0],
