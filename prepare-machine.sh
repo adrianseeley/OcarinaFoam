@@ -28,14 +28,14 @@ apt-get update
 # (containers); systemd hosts use their user manager (systemd, libpam-systemd and
 # dbus-user-session provide it for systemctl --user). Both are installed so either
 # "watcher" value in config.json works. No Node, fonts, GUI or ParaView is required.
-apt-get install -y openfoam2606-default openmpi-bin ffmpeg dotnet-sdk-10.0 git supervisor systemd libpam-systemd dbus-user-session
+apt-get install -y openfoam2606-default openmpi-bin dotnet-sdk-10.0 git supervisor systemd libpam-systemd dbus-user-session
 
 # Works under sudo or as root (e.g. a container). Only a systemd-booted host has a
 # user manager to keep alive; containers skip this and use "watcher": "supervisord".
 target_user=${SUDO_USER:-$(id -un)}
 if [ -d /run/systemd/system ]; then
     # Keep this user's manager alive after logout. Units are created on demand by the
-    # CLI, not enabled for boot: an operator explicitly starts each simulation/render.
+    # CLI, not enabled for boot: an operator explicitly starts each simulation.
     loginctl enable-linger "$target_user"
     systemctl start "user@$(id -u "$target_user").service"
 else

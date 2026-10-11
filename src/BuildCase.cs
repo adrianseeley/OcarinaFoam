@@ -8,21 +8,21 @@ public static class BuildCase
         using var buildLock=Paths.Lock(root,"build");
         // systemd can report active before a just-execed worker acquires its lock.
         // Check the manager as well as worker locks to close that startup race.
-        foreach(string kind in new[]{"simulate","render"})
+        foreach(string kind in new[]{"simulate","watch"})
         {
             if(Services.TryActive(root,kind) is "active" or "activating" or "deactivating")
                 throw new Exception("Stop "+kind+" before building this case.");
         }
         using var simLock=Paths.Lock(root,"simulate");
-        using var renderLock=Paths.Lock(root,"render");
+        using var watchLock=Paths.Lock(root,"watch");
         Config c=Configuration.Load(Path.Combine(root,"config.json"));
         string foam=Paths.Foam(root);
         // Rebuild only generated mesh-only output; never destroy a simulation or its images.
         if(Directory.Exists(foam))
         {
-            bool results=Directory.EnumerateDirectories(foam,"processor*").Any(p=>Renderer.Times(p,out _).Length>0)
-                || Renderer.Times(foam,out _).Length>0 || Directory.Exists(Path.Combine(foam,"postProcessing"))
-                || (Directory.Exists(Path.Combine(root,"renders")) && Directory.EnumerateFiles(Path.Combine(root,"renders"),"*",SearchOption.AllDirectories).Any());
+            bool results=Directory.EnumerateDirectories(foam,"processor*").Any(p=>Points.Times(p,out _).Length>0)
+                || Points.Times(foam,out _).Length>0 || Directory.Exists(Path.Combine(foam,"postProcessing"))
+                || (Directory.Exists(Points.PointsDirectory(root)) && Directory.EnumerateFiles(Points.PointsDirectory(root)).Any(f=>Path.GetFileName(f)!="position.bin.gz"));
             if(results)throw new Exception("This case contains results. Build a new case directory; existing results are never erased by build.");
             if(!File.Exists(Path.Combine(foam,".ocarina"))) throw new Exception("Refusing to replace an unowned foam directory.");
         }
@@ -46,6 +46,8 @@ public static class BuildCase
             string summary=$"Background cells {MeshReport.Cells(block.Output)}; "+MeshReport.Check(stage,mesh.Output);
             Console.WriteLine(summary);File.WriteAllText(Path.Combine(stage,"meshSummary.txt"),summary+"\n");
             if(c.processorCount>1) Run("decomposePar");
+            int pointCount=Points.WritePositions(root,stage,c.processorCount);
+            Console.WriteLine("Wrote "+Points.PositionFile(root)+" ("+pointCount+" points)");
             File.WriteAllText(Path.Combine(stage,".built"),DateTime.UtcNow.ToString("O"));
             if(Directory.Exists(foam))Directory.Delete(foam,true);
             Directory.Move(stage,foam);
@@ -62,27 +64,27 @@ public static class BuildCase
         Dictionary<string,string> v=BackgroundMesh.Build(domain);
         void Set(string key,double value)=>v[key]=Geometry.Number(value);
         double[] center=Enumerable.Range(0,3).Select(i=>(bounds.Min[i]+bounds.Max[i])*.0005).ToArray();
-        double radius=Math.Sqrt(Enumerable.Range(0,3).Sum(i=>Math.Pow((bounds.Max[i]-bounds.Min[i])*.0005,2)))+c.acousticDampingClearanceMillimeters*.001;
-        PreflightResult pre=Preflight.Run(solid,inlet,domain,c,c.probes,Enumerable.Range(0,3).Select(i=>(bounds.Min[i]+bounds.Max[i])*.5).ToArray(),radius*1000,(radius+c.acousticDampingThicknessMillimeters*.001)*1000);
+        double radius=Math.Sqrt(Enumerable.Range(0,3).Sum(i=>Math.Pow((bounds.Max[i]-bounds.Min[i])*.0005,2)))+c.physics.damping.clearanceMillimeters*.001;
+        PreflightResult pre=Preflight.Run(solid,inlet,domain,c,c.ProbeList(),Enumerable.Range(0,3).Select(i=>(bounds.Min[i]+bounds.Max[i])*.5).ToArray(),radius*1000,(radius+c.physics.damping.thicknessMillimeters*.001)*1000);
         Console.WriteLine(pre.Report);
-        v["DAMPING_ORIGIN"]=Geometry.Point(center);Set("DAMPING_INNER_RADIUS",radius);Set("DAMPING_OUTER_RADIUS",radius+c.acousticDampingThicknessMillimeters*.001);
-        v["ACOUSTIC_DAMPING_ENABLED"]=c.acousticDampingEnabled?"yes":"no";
+        v["DAMPING_ORIGIN"]=Geometry.Point(center);Set("DAMPING_INNER_RADIUS",radius);Set("DAMPING_OUTER_RADIUS",radius+c.physics.damping.thicknessMillimeters*.001);
+        v["ACOUSTIC_DAMPING_ENABLED"]=c.physics.damping.enabled?"yes":"no";
         // Consistent ideal-gas constants: gamma is derived from R and Cv, not independent.
         const double molWeight=28.9, cv=712, gasConstant=8314.46261815324;
         Set("AIR_CV",cv);Set("AIR_MOL_WEIGHT",molWeight);Set("AIR_GAMMA",1+gasConstant/molWeight/cv);
-        Set("DAMPING_STRENGTH_MULTIPLIER",c.acousticDampingStrengthMultiplier);Set("DAMPING_TARGET_FREQUENCY",c.acousticDampingTargetFrequencyHz);
+        Set("DAMPING_STRENGTH_MULTIPLIER",c.physics.damping.strengthMultiplier);Set("DAMPING_TARGET_FREQUENCY",c.physics.damping.targetFrequencyHz);
         Set("DELTA_T",c.deltaTSeconds);
         double interval=c.deltaTSeconds*c.fieldWriteIntervalTimeSteps;
         // Round up to an output boundary, then append exactly three guard writes.
         Set("END_TIME",(Math.Ceiling(c.endTimeSeconds/interval-1e-9)+3)*interval);
-        Set("FAR_FIELD_RELAXATION_LENGTH",c.farFieldRelaxationLengthMeters);Set("FIELD_WRITE_INTERVAL",c.fieldWriteIntervalTimeSteps);
-        Set("FEATURE_INCLUDED_ANGLE_DEGREES",c.featureIncludedAngleDegrees);Set("FEATURE_REFINEMENT_LEVEL",c.featureRefinementLevel);
-        Set("N_CELLS_BETWEEN_LEVELS",c.nCellsBetweenLevels);Set("INITIAL_PRESSURE",c.ambientPressureHectopascals*100);
-        Set("INITIAL_TEMPERATURE",c.initialTemperatureCelsius+273.15);Set("INLET_VELOCITY",c.inletVelocityMetersPerSecond);
+        Set("FAR_FIELD_RELAXATION_LENGTH",c.physics.farFieldRelaxationLengthMeters);Set("FIELD_WRITE_INTERVAL",c.fieldWriteIntervalTimeSteps);
+        Set("FEATURE_INCLUDED_ANGLE_DEGREES",c.refinement.feature.includedAngleDegrees);Set("FEATURE_REFINEMENT_LEVEL",c.refinement.feature.level);
+        Set("N_CELLS_BETWEEN_LEVELS",c.refinement.cellsBetweenLevels);Set("INITIAL_PRESSURE",c.physics.ambientPressureHectopascals*100);
+        Set("INITIAL_TEMPERATURE",c.physics.initialTemperatureCelsius+273.15);Set("INLET_VELOCITY",c.physics.inletVelocityMetersPerSecond);
         Set("PROCESSOR_COUNT",c.processorCount);Set("PROBE_WRITE_INTERVAL",c.probeWriteIntervalTimeSteps);
-        Set("SURFACE_REFINEMENT_MAX_LEVEL",c.surfaceRefinementMaxLevel);Set("SURFACE_REFINEMENT_MIN_LEVEL",c.surfaceRefinementMinLevel);
-        v["PROBE_LOCATIONS"]=string.Join('\n',c.probes.Select(p=>"            ("+Geometry.Point(p.point)+") // "+p.name));
-        v["DISTANCE_REFINEMENT_REGIONS"]="solidWalls\n{\n mode distance;\n levels\n(\n"+string.Join('\n',c.bodyDistanceRefinement.OrderBy(x=>x.distanceMillimeters).Select(r=>"("+Geometry.Number(r.distanceMillimeters*.001)+" "+r.level+")"))+"\n);\n}";
+        Set("SURFACE_REFINEMENT_MAX_LEVEL",c.refinement.surface.maxLevel);Set("SURFACE_REFINEMENT_MIN_LEVEL",c.refinement.surface.minLevel);
+        v["PROBE_LOCATIONS"]=string.Join('\n',c.ProbeList().Select(p=>"            ("+Geometry.Point(p.point)+") // "+p.name));
+        v["DISTANCE_REFINEMENT_REGIONS"]="solidWalls\n{\n mode distance;\n levels\n(\n"+string.Join('\n',c.refinement.bodyDistanceLevelsMillimeters.Select((d,i)=>"("+Geometry.Number(d*.001)+" "+(i+1)+")"))+"\n);\n}";
         string template=Path.Combine(AppContext.BaseDirectory,"foamTemplate");
         if(!Directory.Exists(template))throw new DirectoryNotFoundException("Publish output is missing foamTemplate: "+template);
         Directory.CreateDirectory(output);
@@ -98,8 +100,8 @@ public static class BuildCase
         File.WriteAllText(Path.Combine(output,"preflight.txt"),pre.Report);
         File.WriteAllText(Path.Combine(output,"bounds.json"),JsonSerializer.Serialize(bounds,Configuration.Json));
         File.WriteAllText(Path.Combine(output,".ocarina"),"beta-1\n");File.WriteAllText(Path.Combine(output,"case.foam"),"");
-        double sound=Math.Sqrt((1+gasConstant/molWeight/cv)*gasConstant/molWeight*(c.initialTemperatureCelsius+273.15));
-        double nominal=c.backgroundCellSizeMillimeters*.001/Math.Pow(2,Math.Max(c.featureRefinementLevel,c.surfaceRefinementMaxLevel));
+        double sound=Math.Sqrt((1+gasConstant/molWeight/cv)*gasConstant/molWeight*(c.physics.initialTemperatureCelsius+273.15));
+        double nominal=c.refinement.backgroundCellSizeMillimeters*.001/Math.Pow(2,Math.Max(c.refinement.feature.level,c.refinement.surface.maxLevel));
         Console.WriteLine($"Nominal smallest surface cell {nominal:G5} m; estimated acoustic Courant {sound*c.deltaTSeconds/nominal:G5}. Actual snapped cells may be smaller.");
     }
 }

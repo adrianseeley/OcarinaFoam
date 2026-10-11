@@ -12,7 +12,7 @@ public static class Solver
         DiscardIncompleteWrites(parts);
         foreach(string part in parts)
         {
-            string[] times=Renderer.Times(part,out _);string candidate=times.LastOrDefault()??ZeroTime(part);
+            string[] times=Points.Times(part,out _);string candidate=times.LastOrDefault()??ZeroTime(part);
             if(latest!=null&&candidate!=latest)throw new Exception("Latest times differ across processors. Refusing an inconsistent restart; inspect the last write.");
             latest=candidate;
             foreach(string field in new[]{"p","U","T","nut","alphat"})
@@ -20,9 +20,8 @@ public static class Solver
                 string path=Path.Combine(part,candidate,field);
                 if(!File.Exists(path)&&!File.Exists(path+".gz"))throw new Exception("Incomplete restart field: "+path);
                 // Fully decompress and parse each mandatory field before starting MPI.
-                int count=Renderer.CellCount(Path.Combine(part,"constant","polyMesh"));
-                double min=double.PositiveInfinity,max=double.NegativeInfinity;
-                Renderer.ReadField(path,field=="U",new double[count],0,count,ref min,ref max);
+                int count=Points.CellCount(Path.Combine(part,"constant","polyMesh"));
+                Points.Validate(path,field=="U",count);
             }
         }
         RestoreReference(parts,latest);
@@ -42,7 +41,7 @@ public static class Solver
     // Delete such directories (newest first, on every processor) so the run resumes from the last complete write.
     static void DiscardIncompleteWrites(string[] parts)
     {
-        var all=parts.SelectMany(part=>Renderer.Times(part,out _)).Distinct().OrderByDescending(t=>double.Parse(t,System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        var all=parts.SelectMany(part=>Points.Times(part,out _)).Distinct().OrderByDescending(t=>double.Parse(t,System.Globalization.CultureInfo.InvariantCulture)).ToList();
         foreach(string time in all)
         {
             if(parts.All(part=>IsCompleteWrite(part,time)))return;
@@ -58,13 +57,12 @@ public static class Solver
     {
         try
         {
-            int count=Renderer.CellCount(Path.Combine(part,"constant","polyMesh"));
+            int count=Points.CellCount(Path.Combine(part,"constant","polyMesh"));
             foreach(string field in new[]{"p","U","T","nut","alphat"})
             {
                 string path=Path.Combine(part,time,field);
                 if(!File.Exists(path)&&!File.Exists(path+".gz"))return false;
-                double min=double.PositiveInfinity,max=double.NegativeInfinity;
-                Renderer.ReadField(path,field=="U",new double[count],0,count,ref min,ref max);
+                Points.Validate(path,field=="U",count);
             }
             return true;
         }

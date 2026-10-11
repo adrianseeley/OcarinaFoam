@@ -4,7 +4,7 @@ public static class Progress
 {
     public const int PollSeconds = 30;
 
-    // Foreground head for `ocarina start`: poll until both services stop; Ctrl+C only detaches.
+    // Foreground head for `ocarina DIR`: poll until both services stop; Ctrl+C only detaches.
     public static void Run(string root)
     {
         Config c = Configuration.Built(root);
@@ -14,20 +14,19 @@ public static class Progress
         ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; detach = true; };
         Console.CancelKeyPress += cancel;
         Console.WriteLine($"Monitoring every {PollSeconds}s. Press Ctrl+C to detach; the services keep running.");
-        var clock = System.Diagnostics.Stopwatch.StartNew();
-        int? baseFrame = null;
         try
         {
             while (!detach)
             {
-                int simulated = SimulatedFrames(root, c, interval);
-                int rendered = RenderedFrames(root);
-                baseFrame ??= simulated;
-                string sim = Active(root, "simulate"), ren = Active(root, "render");
-                Console.WriteLine(Report(DateTime.Now, simulated, total, rendered, clock.Elapsed.TotalSeconds, simulated - baseFrame.Value, sim, ren));
-                if (sim is not ("active" or "activating") && ren is not ("active" or "activating"))
+                double written_t = SimulatedTime(root, c);
+                int simulated = (int)Math.Round(written_t / interval, MidpointRounding.AwayFromZero);
+                double time = Math.Max(written_t, LogTime(root));
+                int written = Points.FrameCount(Points.PointsDirectory(root));
+                string sim = Active(root, "simulate"), watch = Active(root, "watch");
+                Console.WriteLine(Report(time, simulated, total, written, sim, watch));
+                if (sim is not ("active" or "activating") && watch is not ("active" or "activating"))
                 {
-                    Console.WriteLine("Both services have stopped. Use: ocarina check " + root);
+                    Console.WriteLine("Both services have stopped.");
                     return;
                 }
                 for (int i = 0; i < PollSeconds * 10 && !detach; i++) Thread.Sleep(100);
@@ -37,23 +36,15 @@ public static class Progress
         finally { Console.CancelKeyPress -= cancel; }
     }
 
-    public static string Report(DateTime now, int simulated, int total, int rendered, double elapsedSeconds, int gained, string sim, string ren)
+    public static string Report(double time, int simulated, int total, int written, string sim, string watch)
     {
-        double rate = elapsedSeconds > 0 ? gained / elapsedSeconds : 0;
-        int left = Math.Max(0, total - simulated);
-        string rateText = rate > 0 ? rate.ToString("0.000", CultureInfo.InvariantCulture) + " frames/s" : "n/a";
-        string eta = left == 0 ? "0s" : rate > 0 ? Duration(left / rate) : "unknown";
-        return $"[{now:HH:mm:ss}] simulated {simulated}/{total} (remaining {left}) rate {rateText} eta {eta} | rendered {rendered}/{total} (remaining {Math.Max(0, total - rendered)}) | simulate={sim} render={ren}";
-    }
-
-    public static string Duration(double seconds)
-    {
-        var t = TimeSpan.FromSeconds(Math.Round(seconds));
-        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}h{t.Minutes:D2}m{t.Seconds:D2}s" : t.TotalMinutes >= 1 ? $"{t.Minutes}m{t.Seconds:D2}s" : $"{t.Seconds}s";
+        double percent = total > 0 ? 100.0 * Math.Min(simulated, total) / total : 0;
+        string t = Points.FrameName(time.ToString("R", CultureInfo.InvariantCulture));
+        return $"simulate={sim} watch={watch} | time {t} | simulated {simulated}/{total} | written {written}/{total} | {percent.ToString("0.0", CultureInfo.InvariantCulture)}%";
     }
 
     // Latest frame written by every rank; a half-written write on one rank does not count.
-    static int SimulatedFrames(string root, Config c, double interval)
+    static double SimulatedTime(string root, Config c)
     {
         string foam = Paths.Foam(root);
         string[] parts = c.processorCount == 1 ? new[] { foam } : Enumerable.Range(0, c.processorCount).Select(i => Path.Combine(foam, "processor" + i)).ToArray();
@@ -61,16 +52,29 @@ public static class Progress
         foreach (string part in parts)
         {
             if (!Directory.Exists(part)) return 0;
-            Renderer.Times(part, out double[] numbers);
+            Points.Times(part, out double[] numbers);
             latest = Math.Min(latest, numbers.Length == 0 ? 0 : numbers[^1]);
         }
-        return (int)Math.Round(latest / interval, MidpointRounding.AwayFromZero);
+        return latest;
     }
 
-    static int RenderedFrames(string root)
+    // The solver only writes fields every N steps, so the live time comes from its log.
+    static double LogTime(string root)
     {
-        string done = Path.Combine(root, "renders", ".done");
-        return Directory.Exists(done) ? Directory.EnumerateFiles(done, "*.json").Count() : 0;
+        try
+        {
+            string logs = Path.Combine(root, "logs");
+            string log = Directory.GetFiles(logs, "solver-*.log").OrderBy(f => f, StringComparer.Ordinal).LastOrDefault();
+            if (log == null) return 0;
+            using var f = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            int n = (int)Math.Min(f.Length, 65536);
+            f.Seek(-n, SeekOrigin.End);
+            var buf = new byte[n];
+            f.ReadExactly(buf);
+            var m = System.Text.RegularExpressions.Regex.Matches(System.Text.Encoding.UTF8.GetString(buf), @"^Time = (\S+)\s*$", System.Text.RegularExpressions.RegexOptions.Multiline);
+            return m.Count == 0 ? 0 : double.Parse(m[^1].Groups[1].Value, CultureInfo.InvariantCulture);
+        }
+        catch { return 0; }
     }
 
     static string Active(string root, string kind)

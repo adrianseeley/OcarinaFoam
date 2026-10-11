@@ -26,7 +26,7 @@ studying that assumption, and record the resulting case inputs and code revision
 | Partitioning | Serial at one rank; scotch/uncollated at multiple ranks |
 | Geometry units | Input ASCII STL in mm; converted once to metres |
 | Disk fields | ASCII, gzip compressed; no OpenFOAM purge |
-| Renderer delay | Exactly three newer positive times on every rank |
+| Watcher delay | Exactly three newer positive times on every rank |
 | Runtime changes | No live physics dictionary changes |
 
 The comments cover the significant alternative model families, not every model
@@ -36,119 +36,63 @@ code/template experiment; there is no compatibility layer or universal solver UI
 ## Config reference
 
 Each case owns `config.json`. Unknown keys are errors and so are missing ones: every
-key, including all of `audio` (and `audio.plots`), `report` and `renderer`, must be
+key, including all of `points`, must be
 present, with no silent defaults. Copy `ocarinaZero/config.json` as the complete list. The builder snapshots it to `foam/config.json`;
-physics changes subsequently require a fresh case/build. Runtime rendering reads
-this snapshot and the case's current renderer section; it never regenerates code.
+physics changes subsequently require a fresh case/build. Runtime frame writing reads
+this snapshot and the case's current points section; it never regenerates code.
 
 | Key(s) | Meaning and baseline intent |
 |---|---|
-| `processorCount` | MPI ranks; 6 in the sample. Match available CPU/RAM. Rendering also needs CPU and memory. |
+| `processorCount` | MPI ranks; 6 in the sample. Match available CPU/RAM. The watcher also needs CPU and memory. |
 | `worldPaddingMillimeters` | Six per-side paddings around body bounds; yMin must be 0. **0 means exactly the solid's bound** (not rounded to the grid); positive values round outward to the grid. The class default is 100 mm per side; the sample config uses 0 everywhere except zMax = 100 (reduced-domain experiment). A positive zMax of at least two cells is required: locationInMesh lives in that air. |
-| `backgroundCellSizeMillimeters` | 5 mm coarse grid before refinement. Inlet-aligned remainder bands can be smaller. |
-| `surfaceRefinementMinLevel`, `surfaceRefinementMaxLevel` | 3 / 5; approximate coarse-cell halvings at the surface. |
-| `featureRefinementLevel` | 5 around extracted features; scale matches the body surface. |
-| `nCellsBetweenLevels` | 3; refinement-transition spacing. |
-| `bodyDistanceRefinement` | Distance in mm and level pairs, sorted nearest first; default 2 mm/3, 5 mm/2, 10 mm/1. |
-| `featureIncludedAngleDegrees` | 150; threshold for extracted sharp edges, separate from snapping feature angle. |
-| `inletVelocityMetersPerSecond` | 12; prescribed flow speed, not supply pressure or microphone particle velocity. |
-| `ambientPressureHectopascals` | 1013.25 hPa = 101325 Pa absolute. |
-| `initialTemperatureCelsius` | 26.85 Â°C = 300 K. |
+| `refinement.backgroundCellSizeMillimeters` | 5 mm coarse grid before refinement. Inlet-aligned remainder bands can be smaller. |
+| `refinement.surface.minLevel`, `refinement.surface.maxLevel` | 3 / 5; approximate coarse-cell halvings at the surface. |
+| `refinement.feature.level` | 5 around extracted features; scale matches the body surface. |
+| `refinement.cellsBetweenLevels` | 3; refinement-transition spacing. |
+| `refinement.bodyDistanceLevelsMillimeters` | Distances in mm, strictly decreasing; entry N is level N (rank implies the level). Default `[10, 5, 2]`: 10 mm level 1, 5 mm level 2, 2 mm level 3. |
+| `refinement.feature.includedAngleDegrees` | 150; threshold for extracted sharp edges, separate from snapping feature angle. |
+| `physics.inletVelocityMetersPerSecond` | 12; prescribed flow speed, not supply pressure or microphone particle velocity. |
+| `physics.ambientPressureHectopascals` | 1013.25 hPa = 101325 Pa absolute. |
+| `physics.initialTemperatureCelsius` | 26.85 Â°C = 300 K. |
 | `deltaTSeconds` | 1e-7 s; nominal acoustic Courant estimate printed at build. Actual cell sizes matter. |
 | `endTimeSeconds` | Requested duration, 3 s; rounded to a write boundary plus three guard writes. |
 | `fieldWriteIntervalTimeSteps` | 10; at the default dt, full fields every 1 microsecond. This is very large output: about 3 million frame sets for 3 seconds. |
 | `probeWriteIntervalTimeSteps` | 1; independent compact p/U/T sampling every solver step. |
-| `farFieldRelaxationLengthMeters` | 0.1; waveTransmissive relaxation length, not sponge thickness. |
-| `acousticDampingEnabled` | true; compare a disabled sponge only as an explicit experiment. |
-| `acousticDampingTargetFrequencyHz` | 3000; source-strength scale, not a tuned band-pass filter. |
-| `acousticDampingThicknessMillimeters` | 250; configured spherical ramp width. The mesh clips this shell. |
-| `acousticDampingStrengthMultiplier` | 20; OpenFOAM coefficient `w`, a dimensionless source-strength multiplier. |
-| `acousticDampingClearanceMillimeters` | 20 beyond the body bounding sphere before damping starts. |
-| `probes` | Named three-coordinate points **in metres**. They do not automatically follow CAD changes. The build rejects any probe outside the domain, inside the solid, or in fluid disconnected from locationInMesh; it never relocates one. |
+| `physics.farFieldRelaxationLengthMeters` | 0.1; waveTransmissive relaxation length, not sponge thickness. |
+| `physics.damping.enabled` | true; compare a disabled sponge only as an explicit experiment. |
+| `physics.damping.targetFrequencyHz` | 3000; source-strength scale, not a tuned band-pass filter. |
+| `physics.damping.thicknessMillimeters` | 250; configured spherical ramp width. The mesh clips this shell. |
+| `physics.damping.strengthMultiplier` | 20; OpenFOAM coefficient `w`, a dimensionless source-strength multiplier. |
+| `physics.damping.clearanceMillimeters` | 20 beyond the body bounding sphere before damping starts. |
+| `probes` | An object of `"name": [x, y, z]` entries, **in metres**. They do not automatically follow CAD changes. The build rejects any probe outside the domain, inside the solid, or in fluid disconnected from locationInMesh; it never relocates one. |
 
 For a practical first run, copy the sample into a new directory and choose a short
 duration and a larger field-write interval. Probe sampling can remain dense while
 field output is sparse. That trades visual time resolution, not solver time resolution.
 
-## Renderer controls
+## Points controls
 
-| Key(s) inside `renderer` | Meaning |
+| Key inside `points` | Meaning |
 |---|---|
-| `renderThreads` | Concurrent frame workers; each owns a full point/field working set and a composite bitmap. Start small if RAM is limited. |
-| `pollMilliseconds` | Discovery/idle interval, 2000 ms by default. |
-| `pngCompressionLevel` | 0â€“9, default 6. Compression does not change PNG pixel values. |
-| `plotWidth`, `plotHeight` | Per-tile pixels. Composite size is `plotWidth * columns` by `plotHeight * rows` from `renderer.tiles`. |
-| `marginPixels`, `labelFontPixels` | Legend margin and stroke-letter size. Long legend labels shrink to fit. |
-| `backgroundColor`, `labelColor` | Hex colours accepted by Skia. |
-| `pointSizePixels` | Cell-centre marker size in pixels, not cell volume. |
-| `axisTiltDegrees` | Optional camera tilt so aligned rows of cells do not hide each other. |
-| `cameraPaddingFraction` | Padding around the solid's bounds for camera framing. |
-| `renderPressure`, `renderVelocityMagnitude`, `renderDensity`, `renderTemperature` | Enabled field images. At least one is required. |
-| `tiles` | Required row-major 2D tile matrix. Each entry is either the exact string `"legend"` or a camera object. |
+| `pollMilliseconds` | Watcher idle interval, 2000 ms by default. |
+| `compression` | `fastest`, `optimal` or `smallest`: gzip effort for `points/` files. |
+| `velocity`, `temperature`, `pressure`, `density` | Fields written into each frame. At least one is required. |
 
-Concurrency and polling can change on restart. Other renderer changes are rejected
-after startup accepts the saved recipe in `renders/config.json` (even before the
-first frame finishes), preventing mixed visual recipes after source fields are
-consumed. Use a new case for a different recipe.
+`ocarina build` writes `points/position.bin.gz`: float32 XYZ cell centres, processor 0's cells
+first, then processor 1's, and so on. The watcher writes one `points/SSSsMMMmsUUUusNNNns.bin.gz` per
+raw time: per point (same order), float32 values of the enabled fields in the fixed order velocity
+(vX vY vZ), temperature, pressure, density. The `points` block of `config.json` is the only record of
+the layout; do not change it mid-run. Velocity is the full vector, pressure is absolute, and values are
+raw SI. Derive acoustic fluctuations from numerical probes.
 
-`renderer.tiles` fully controls placement. Outer arrays are rows (top to bottom),
-inner arrays are columns (left to right). Cells do not auto-fill: no hidden legend,
-no fixed camera list, and no automatic grid generation.
-
-Camera tile keys:
-
-- `name` (required): tile title only; no filename or preset lookup.
-- `from` (required): nonzero eye-side direction vector in global XYZ.
-- `up` (optional): desired screen-up vector; defaults to +Z except near +Z/-Z views,
-  where +Y is used to avoid a parallel basis.
-- `targetMillimeters` (optional): pan target in model millimetres, defaulting to the
-  solid-bounds centre.
-- `zoom` (optional): orthographic scale multiplier (`1` default, `>1` zooms in).
-
-At least one camera tile is required. Legend-only layouts are rejected. Legends can
-appear in any cell and can repeat.
-
-Example:
-
-```json
-"tiles": [
-  [
-    { "name": "Xp", "from": [1, 0, 0] },
-    { "name": "Yn", "from": [0, -1, 0] }
-  ],
-  [
-    "legend",
-    { "name": "Zp", "from": [0, 0, 1], "up": [0, 1, 0] }
-  ],
-  [
-    { "name": "XpYpZp", "from": [1, 1, 1] },
-    { "name": "XnYnZp", "from": [-1, -1, 1] }
-  ]
-]
-```
-
-The renderer merges the partitions into a static cell-centre cloud. Hue is normalised
-to each field's current minimum/maximum. Opacity is absolute change from the previous
-available frame, normalised by the largest change. The first frame is opaque. Speed
-is the magnitude of U; direction-only changes at constant speed are invisible.
-These are qualitative field visualisations, not calibrated sound-pressure-level maps.
-Pressure is absolute; derive acoustic pressure fluctuations from numerical probes.
-
-Each frame's PNGs are published through temporary files. A completion record is
-written only after every enabled image succeeds. Raw time t is deleted only after
-t's images and its successor's images finish, preserving t for the successor's
-change calculation. Recovery finishes interrupted deletions and skips committed
-frames. `postProcessing/` probe output is retained. Do not delete PNGs, completion
-records or raw times manually while a renderer owns the case.
-
-Run `ocarina render preview DIR` to inspect tile placement, direction, roll, pan,
-zoom and clipping against the built metre-scale `solidBody.stl` before consuming any
-fields. Preview writes `DIR/previews/layout.png` and never reads timestep fields,
-creates completion records, or writes/updates `renders/config.json`.
+Each frame is compressed to a temporary file and renamed, so a frame file is never partial. Raw time t
+is deleted from every processor only after its frame is committed, and only once three newer times
+exist. Recovery skips committed frames and just deletes their raw times. `postProcessing/` probe output
+is retained. Do not delete frames or raw times manually while the watcher owns the case.
 
 The three-write holdback is a lag rule, not atomic filesystem completion. All required
 fields must parse through their closing boundary block before a frame can commit.
-A parse/render error stops the worker service; it never silently skips a bad frame.
+A parse error stops the worker service; it never silently skips a bad frame.
 
 ## Reproducibility and validation
 

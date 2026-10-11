@@ -1,4 +1,3 @@
-﻿using SkiaSharp;
 
 // Pure-C# checks of the background domain and inlet/probe handling. No OpenFOAM required.
 public static class SelfTest
@@ -6,45 +5,22 @@ public static class SelfTest
     static int failures;
     static void Check(bool ok, string name) { Console.WriteLine((ok ? "PASS " : "FAIL ") + name); if (!ok) failures++; }
     static bool Throws(Action a) { try { a(); return false; } catch (Exception) { return true; } }
-    static Config Cfg(Padding p) => new Config { worldPaddingMillimeters = p, backgroundCellSizeMillimeters = 5 };
+    static Config Cfg(Padding p) => new Config { worldPaddingMillimeters = p, refinement = new RefinementConfig { backgroundCellSizeMillimeters = 5 } };
     static Bounds B(double[] min, double[] max) => new Bounds { Min = min, Max = max };
     static double Span(List<Band> bands) => bands.Sum(b => b.End - b.Start);
-    static RenderConfig RenderCfg(string viewsJson) => new RenderConfig
-    {
-        renderThreads = 1,
-        pollMilliseconds = 1000,
-        pngCompressionLevel = 6,
-        plotWidth = 400,
-        plotHeight = 300,
-        marginPixels = 20,
-        labelFontPixels = 24,
-        backgroundColor = "#050505",
-        labelColor = "#ffffff",
-        pointSizePixels = 3,
-        cameraPaddingFraction = 0.2,
-        minimumAlpha = 0.1,
-        renderPressure = true,
-        renderVelocityMagnitude = false,
-        renderDensity = false,
-        renderTemperature = false,
-        views = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement[]>(viewsJson, Configuration.Json)
-    };
-
     public static int Run()
     {
         string dir = Path.Combine(AppContext.BaseDirectory, "ocarinaZero");
         Config c = Configuration.Load(Path.Combine(dir, "config.json"));
         string full = File.ReadAllText(Path.Combine(dir, "config.json"));
         string Without(string key) { var node = System.Text.Json.Nodes.JsonNode.Parse(full, null, new System.Text.Json.JsonDocumentOptions { CommentHandling = System.Text.Json.JsonCommentHandling.Skip }); var path = key.Split('.'); var o = node.AsObject(); for (int i = 0; i < path.Length - 1; i++) o = o[path[i]].AsObject(); o.Remove(path[^1]); string f = Path.Combine(Path.GetTempPath(), "ocarina-cfg-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, node.ToJsonString()); return f; }
-        foreach (string key in new[] { "watcher", "audio", "report", "audio.highPassHz", "audio.plots.punchWidth", "report.videoCrf", "renderer.pointSizePixels", "probes" })
+        foreach (string key in new[] { "watcher", "points", "points.compression", "probes", "refinement.surface.minLevel", "physics.damping" })
         {
             string f = Without(key);
             try { Check(Throws(() => Configuration.Load(f)), "missing config key is an error: " + key); } finally { File.Delete(f); }
         }
-        Check(c.report != null, "example report config loads");
+        Check(c.points != null, "example points config loads");
         { string f = Path.Combine(Path.GetTempPath(), "ocarina-watcher-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, full.Replace("\"watcher\": \"systemd\"", "\"watcher\": \"bogus\"")); try { Check(Throws(() => Configuration.Load(f)), "unknown watcher is an error"); } finally { File.Delete(f); } }
-        Check(ReportMath.Intermediate(96000, 100000) == 2_400_000 && ReportMath.Relabelled(96000, 100000) == 24 && ReportMath.Intermediate(96000, 3) == 96000, "slowdown ratios are exact integers");
-        Check(ReportMath.SlowedRate(c.audio, c.report, 1000) == 8000 && ReportMath.SlowedRate(c.audio, c.report, 2) == 48000, "slowed rate keeps the original content and never drops below the minimum");
         Facet[] solid = Geometry.Read(Path.Combine(dir, "solidBody.stl"));
         Facet[] inlet = Geometry.Inlet(Geometry.Read(Path.Combine(dir, "spawnPlane.stl")));
         Bounds sb = Geometry.Bound(solid), ib = Geometry.Bound(inlet);
@@ -53,7 +29,7 @@ public static class SelfTest
         Check(p.xMin == 0 && p.xMax == 0 && p.yMin == 0 && p.yMax == 0 && p.zMin == 0 && p.zMax == 100, "example config: zero padding except zMax 100");
         Domain d = BackgroundMesh.Layout(sb, ib, c);
         Check(d.Min[0] == sb.Min[0] && d.Max[0] == sb.Max[0] && d.Min[1] == sb.Min[1] && d.Max[1] == sb.Max[1] && d.Min[2] == sb.Min[2], "zero-padded sides equal the solid's exact bounds");
-        Check(d.Max[2] >= sb.Max[2] + 100 && d.Max[2] < sb.Max[2] + 100 + c.backgroundCellSizeMillimeters, "padded +Z side keeps outward grid rounding");
+        Check(d.Max[2] >= sb.Max[2] + 100 && d.Max[2] < sb.Max[2] + 100 + c.refinement.backgroundCellSizeMillimeters, "padded +Z side keeps outward grid rounding");
         Check(Math.Abs(Span(d.X) - (d.Max[0] - d.Min[0])) < 1e-9 && Math.Abs(Span(d.Z) - (d.Max[2] - d.Min[2])) < 1e-9, "blocks tile the domain exactly");
         Check(Throws(() => BackgroundMesh.Layout(sb, ib, Cfg(new Padding { xMin = 0, xMax = 0, yMin = 0, yMax = 0, zMin = 0, zMax = 0 }))), "no air above the body is rejected for locationInMesh");
 
@@ -75,11 +51,11 @@ public static class SelfTest
         Check(Math.Abs(d.Min[1]) < 1e-12 && ib.Min[1] == 0, "inlet plane lies on the domain y minimum");
 
         // Probes and locationInMesh.
-        Preflight.ValidateProbes(d, c.probes);
+        Preflight.ValidateProbes(d, c.ProbeList());
         Check(true, "configured probes lie inside the domain");
         Check(Throws(() => Preflight.ValidateProbes(d, new[] { new Probe { name = "farMic", point = new[] { 0, .15, .05 } } })), "probe beyond the cropped Y bound is rejected");
-        Check(!c.probes.Any(x => x.name == "farMic"), "example config no longer contains farMic");
-        int max = Math.Max(c.surfaceRefinementMaxLevel, c.featureRefinementLevel);
+        Check(!c.probes.ContainsKey("farMic"), "example config no longer contains farMic");
+        int max = Math.Max(c.refinement.surface.maxLevel, c.refinement.feature.level);
         bool clear = true;
         for (int level = 0; level <= max; level++)
         {
@@ -90,113 +66,67 @@ public static class SelfTest
 
         // Whole-geometry connectivity through voicing/chamber/throat on the real STLs.
         double[] centre = Enumerable.Range(0, 3).Select(i => (sb.Min[i] + sb.Max[i]) * .5).ToArray();
-        double r = Math.Sqrt(Enumerable.Range(0, 3).Sum(i => Math.Pow((sb.Max[i] - sb.Min[i]) * .5, 2))) + c.acousticDampingClearanceMillimeters;
-        PreflightResult pre = Preflight.Run(solid, inlet, d, c, c.probes, centre, r, r + c.acousticDampingThicknessMillimeters);
+        double r = Math.Sqrt(Enumerable.Range(0, 3).Sum(i => Math.Pow((sb.Max[i] - sb.Min[i]) * .5, 2))) + c.physics.damping.clearanceMillimeters;
+        PreflightResult pre = Preflight.Run(solid, inlet, d, c, c.ProbeList(), centre, r, r + c.physics.damping.thicknessMillimeters);
         Console.WriteLine(pre.Report);
         Check(!pre.Report.Contains("WARNING"), "all fluid, including chamber and throat, connects to locationInMesh");
 
-        // Renderer view parsing and camera behaviour.
-        RenderConfig sample = RenderCfg("[{\"name\":\"Xp\",\"from\":[1,0,0]},{\"name\":\"Zp_2\",\"from\":[0,0,1],\"up\":[0,1,0]}]");
-        Check(Renderer.ParseViews(sample).Length == 2, "renderer views parse");
-        Check(Throws(() => Renderer.ParseViews(RenderCfg("[]"))), "renderer rejects empty views");
-        Check(Throws(() => Renderer.ParseViews(RenderCfg("[\"legend\"]"))), "renderer rejects non-camera views");
-        Check(Throws(() => Renderer.ParseViews(RenderCfg("[{\"name\":\"a b\",\"from\":[1,0,0]}]"))), "renderer rejects view names unsafe for folders");
-        Check(Throws(() => Renderer.ParseViews(RenderCfg("[{\"name\":\"a\",\"from\":[1,0,0]},{\"name\":\"a\",\"from\":[0,1,0]}]"))), "renderer rejects duplicate view names");
-        Check(Throws(() => Renderer.ParseViews(RenderCfg("[{\"name\":\"bad\",\"from\":[1,0]}]"))), "renderer rejects malformed vectors");
-        Check(Throws(() => Renderer.ParseViews(RenderCfg("[{\"name\":\"bad\",\"from\":[1,0,0],\"unknown\":1}]"))), "renderer rejects unknown camera keys");
-
-        Renderer.PlotWidth = 300; Renderer.PlotHeight = 220; Renderer.MarginPixels = 20; Renderer.LabelFontPixels = 24;
-        Renderer.ObjectMinimum = new System.Numerics.Vector3(-1, -2, -3);
-        Renderer.ObjectMaximum = new System.Numerics.Vector3(1, 2, 3);
-        Renderer.CameraPaddingFraction = 0.2f;
-        SKRect content = Renderer.TileContentRect();
-        RenderTileDefinition t1 = new RenderTileDefinition { Name = "a", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 };
-        RenderTileDefinition t2 = new RenderTileDefinition { Name = "b", From = new[] { 10d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 };
-        Camera c1 = Renderer.MakeCamera(t1, content);
-        Camera c2 = Renderer.MakeCamera(t2, content);
-        Check(System.Numerics.Vector3.Distance(c1.TowardEye, c2.TowardEye) < 1e-6f, "camera direction ignores vector magnitude");
-        RenderTileDefinition t3 = new RenderTileDefinition { Name = "target", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 1000d, 0d, 0d }, Zoom = 1 };
-        Check(Math.Abs(Renderer.MakeCamera(t3, content).Centre.X - 1f) < 1e-6f, "targetMillimeters converts to metres once");
-        RenderTileDefinition zoomA = new RenderTileDefinition { Name = "z1", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 };
-        RenderTileDefinition zoomB = new RenderTileDefinition { Name = "z3", From = new[] { 1d, 0d, 0d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 3 };
-        Check(Math.Abs(Renderer.MakeCamera(zoomB, content).Scale / Renderer.MakeCamera(zoomA, content).Scale - 3f) < 1e-5f, "zoom multiplies orthographic scale");
-        Check(Throws(() => Renderer.MakeCamera(new RenderTileDefinition { Name = "badup", From = new[] { 0d, 0d, 1d }, Up = new[] { 0d, 0d, 1d }, TargetMillimeters = new[] { 0d, 0d, 0d }, Zoom = 1 }, content)), "parallel up vector is rejected");
-
-        // Audio chain: a 1 kHz tone riding on ambient pressure survives resampling with its frequency and level.
+        // Points: frame names, field order, interleaved parsing.
+        Check(Points.FrameName("0.0001") == "000s000ms100us000ns", "frame name for 100 microseconds");
+        Check(Points.FrameName("1.234567891") == "001s234ms567us891ns", "frame name is exact to the nanosecond");
+        Check(Points.FrameName("0.00001") == "000s000ms010us000ns", "frame name for 10 microseconds");
+        Check(string.Join(",", Points.Selected(new PointsConfig { velocity = true, temperature = true, pressure = true, density = false }).Select(f => f.Name)) == "velocity,temperature,pressure", "fields follow the fixed order");
+        Check(Throws(() => Points.ParseCompression("zip")), "unknown compression is rejected");
         {
-            var au = new AudioConfig(); const double fsIn = 1e6;
-            double[] tone = Enumerable.Range(0, 50000).Select(i => 2 * Math.Sin(2 * Math.PI * 1000 * i / fsIn)).ToArray();
-            double[] rs = AudioDsp.Resample(tone, fsIn, au.sampleRateHz, au);
-            double[] faded = AudioDsp.Fade(AudioDsp.HighPass(rs, au.sampleRateHz, au.highPassHz), au.sampleRateHz, au.fadeMilliseconds);
-            double[] db = AudioDsp.Spectrum(faded, au.sampleRateHz, out double bin);
-            int top = Array.IndexOf(db, db.Max());
-            Check(Math.Abs(rs.Length - 4801) <= 1, "resampler yields the expected sample count");
-            Check(Math.Abs(top * bin - 1000) < 2 * bin, "resampled tone keeps its frequency");
-            Check(Math.Abs(AudioDsp.Peak(AudioDsp.Resample(tone, fsIn, au.sampleRateHz, au)) - 2) < 0.02, "resampled tone keeps its amplitude");
-            AudioDsp.Quantise24(new[] { 2.0, -2.0, .5 }, out int clipped);
-            Check(clipped == 2, "quantiser counts clipped samples");
-        }
-
-        // Musical notes and exact-frequency note samples.
-        {
-            Note[] all = MusicalNotes.Generate(440, 0, 9);
-            Note Find(string n) => all.Single(x => x.Name == n);
-            Check(all.Length == 120 && all.Select(x => x.Index).Distinct().Count() == 120, "note grid has 12 unique notes per octave");
-            Check(Math.Abs(Find("A4").Hz - 440) < 1e-9 && Math.Abs(Find("A5").Hz - 880) < 1e-9, "A4 and A5 map to 440 and 880 Hz");
-            Check(Math.Abs(Find("C4").Hz - 261.625565) < 1e-5 && Math.Abs(Find("F" + MusicalNotes.Sharp + "6").Hz - 1479.977691) < 1e-5, "C4 and F-sharp 6 frequencies");
-            Check(MusicalNotes.Spelled('B', 1, 3) == Find("C4").Index && MusicalNotes.Spelled('C', -1, 4) == Find("B3").Index
-                && MusicalNotes.Spelled('B', 2, 3) == Find("C" + MusicalNotes.Sharp + "4").Index && MusicalNotes.Spelled('C', -2, 4) == Find("A" + MusicalNotes.Sharp + "3").Index, "aliases cross octave boundaries correctly");
-            Check(Enumerable.Range(0, 12).Count(pc => MusicalNotes.Aliases(pc).Length == 0) == 1 && MusicalNotes.Aliases(8).Length == 0, "only G-sharp/A-flat has no double-accidental aliases");
-
-            const double fs = 48000;
-            double[] tone = Enumerable.Range(0, 48000).Select(i => 0.5 * Math.Sin(2 * Math.PI * 440 * i / fs) + 0.125 * Math.Sin(2 * Math.PI * 880 * i / fs)).ToArray();
-            double[] got = NoteAnalysis.Evaluate(tone, fs, new[] { 440.0, 880.0 });
-            Check(Math.Abs(got[0] - -6.0206) < 0.05 && Math.Abs(got[1] - -18.0618) < 0.05 && Math.Abs((got[0] - got[1]) - 12.04) < 0.05, "known tones read -6.02 and -18.06 dBFS");
-
-            double[] small = Enumerable.Range(0, 3000).Select(i => Math.Sin(i * 0.37) + 0.3 * Math.Cos(i * 0.011)).ToArray();
-            double[] fr = { 100, 437.3, 1234.5, 5000, 12345.6 };
-            double[] fast = NoteAnalysis.Evaluate(small, fs, fr), slow = NoteAnalysis.EvaluateDirect(small, fs, fr);
-            Check(fast.Zip(slow).All(z => Math.Abs(Math.Pow(10, z.First / 20) - Math.Pow(10, z.Second / 20)) < 1e-12), "oscillator recurrence matches direct trigonometric sum");
-
-            double[] fftIn = Enumerable.Range(0, 2048).Select(i => Math.Sin(2 * Math.PI * 3000 * i / fs) * 0.7).ToArray();
-            double[] spec = AudioDsp.Spectrum(fftIn, fs, out double bin);
-            double[] direct = NoteAnalysis.Evaluate(fftIn, fs, new[] { 128 * bin, 64 * bin });
-            Check(Math.Abs(direct[0] - spec[128]) < 1e-6 && Math.Abs(direct[1] - spec[64]) < 1e-6, "direct evaluation matches the FFT on interior bins (zero-padding-free length)");
-
-            var cfg = new AudioPlotConfig();
-            var deep = new AudioPlotConfig { displayFloorDbfs = -400 };
-            NoteSpectrum a1 = NoteAnalysis.Analyze(tone, fs, 1e7, deep), a2 = NoteAnalysis.Analyze(tone.Select(v => v * 0.25).ToArray(), fs, 1e7, deep);
-            Check(a1.Mode == NoteMode.Normal && Enumerable.Range(0, all.Length).All(i => a1.Status[i] != NoteStatus.Valid || Math.Abs(NoteAnalysis.Position(a1, i) - NoteAnalysis.Position(a2, i)) < 1e-9),
-                "note colours ignore overall gain while dB shifts");
-            Check(Math.Abs(a1.Strongest - a2.Strongest - 12.0412) < 0.01, "spectrum dB shifts with gain");
-            Check(a1.Status.Count(x => x == NoteStatus.Valid) == a1.ValidCount && a1.Notes.Where((n, i) => a1.Status[i] == NoteStatus.Valid).All(n => n.Hz < 24000), "notes at or above Nyquist are excluded");
-            NoteSpectrum silent = NoteAnalysis.Analyze(new double[4800], fs, 1e7, cfg);
-            Check(silent.Mode == NoteMode.BelowFloor && Enumerable.Range(0, all.Length).All(i => silent.Status[i] != NoteStatus.Valid || NoteAnalysis.Position(silent, i) == 0), "silence maps to the floor without NaN");
-            NoteSpectrum flat = NoteAnalysis.Analyze(Enumerable.Range(0, 4800).Select(i => 0.5).ToArray(), fs, 1e7, new AudioPlotConfig { minimumOctave = 4, maximumOctave = 4, maximumFrequencyHz = 300 });
-            Check(NoteAnalysis.Analyze(new double[4], fs, 1e7, cfg).Mode == NoteMode.TooShort, "very short records are reported, not divided by zero");
-            Check(NoteAnalysis.Analyze(tone, fs, 8000, cfg).Notes.Where((n, i) => n.Hz >= 4000 && NoteAnalysis.Analyze(tone, fs, 8000, cfg).Status[i] == NoteStatus.Valid).Count() == 0, "native Nyquist limits the note band");
-            Check(NoteAnalysis.Analyze(tone.Select((v, i) => i == 5 ? double.NaN : v).ToArray(), fs, 1e7, cfg).InvalidCount > 0, "non-finite samples mark notes invalid");
-            Check(flat.Mode is NoteMode.Flat or NoteMode.Normal or NoteMode.BelowFloor, "narrow note range analyses");
-
-            string plotDir = Path.Combine(Path.GetTempPath(), "ocarina-plot-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(plotDir);
+            string tmp = Path.Combine(Path.GetTempPath(), "ocarina-points-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tmp);
             try
             {
-                var au = new AudioConfig();
-                au.plots.waveformHeight = 500;
-                double[] db = AudioDsp.Spectrum(tone, fs, out double b2);
-                AudioPlotResult pr = AudioPlots.Make("test_probe", tone, fs, 1e7, db, b2, au, plotDir);
-                Check(new FileInfo(pr.SpectrumPath).Length > 1000 && new FileInfo(pr.OctavePath).Length > 1000 && new FileInfo(pr.PunchPath).Length > 1000, "spectrum.png, octave.png, and punch.png are written");
-                using (SKBitmap waveform = SKBitmap.Decode(pr.WaveformPaths[0]))
-                    Check(waveform.Height == au.plots.waveformHeight, "waveform height uses plots.waveformHeight");
-                Check(pr.WaveformPaths.Length >= 1 && pr.WaveformPaths.All(x => new FileInfo(x).Length > 500), "one waveform png per segment is written");
-                AudioPlots.MakeJoint(new[] { "a", "b" }, new[] { tone, tone.Take(tone.Length / 2).ToArray() }, new[] { db, db }, new[] { b2, b2 }, fs, 1e7, au, plotDir);
-                AudioPlots.Make("low_rate", tone, fs, 8000, db, b2, au, plotDir);
-                AudioPlots.Make("quiet", new double[4800], fs, 1e7, AudioDsp.Spectrum(new double[4800], fs, out double b3), b3, au, plotDir);
+                string header = "FoamFile\n{\n version 2.0;\n format ascii;\n class volVectorField;\n object U;\n}\n";
+                File.WriteAllText(Path.Combine(tmp, "U"), header + "internalField nonuniform List<vector>\n2\n(\n(1 2 3)\n(4 5 6)\n)\n;\nboundaryField\n{\n a { type zeroGradient; }\n}\n");
+                File.WriteAllText(Path.Combine(tmp, "T"), header + "internalField uniform 300;\nboundaryField\n{\n a { type zeroGradient; }\n}\n");
+                float[] frame = new float[8];
+                Points.ReadField(Path.Combine(tmp, "U"), true, frame, 0, 2, 4, 0);
+                Points.ReadField(Path.Combine(tmp, "T"), false, frame, 0, 2, 4, 3);
+                Check(frame.SequenceEqual(new float[] { 1, 2, 3, 300, 4, 5, 6, 300 }), "vector keeps all components and fields interleave per point");
+                // One hexahedral cell spanning 0..2: position, frame contents, three-newer holdback.
+                string root = Path.Combine(tmp, "case"), foam = Path.Combine(root, "foam"), mesh = Path.Combine(foam, "constant", "polyMesh");
+                Directory.CreateDirectory(mesh);
+                File.WriteAllText(Path.Combine(mesh, "points"), header + "8\n(\n(0 0 0)\n(2 0 0)\n(2 2 0)\n(0 2 0)\n(0 0 2)\n(2 0 2)\n(2 2 2)\n(0 2 2)\n)\n");
+                File.WriteAllText(Path.Combine(mesh, "faces"), header + "6\n(\n4(0 3 2 1)\n4(4 5 6 7)\n4(0 1 5 4)\n4(1 2 6 5)\n4(2 3 7 6)\n4(3 0 4 7)\n)\n");
+                File.WriteAllText(Path.Combine(mesh, "owner"), header + "6\n(\n0\n0\n0\n0\n0\n0\n)\n");
+                File.WriteAllText(Path.Combine(mesh, "neighbour"), header + "0\n(\n)\n");
+                Points.Compression = System.IO.Compression.CompressionLevel.Fastest;
+                Check(Points.WritePositions(root, foam, 1) == 1, "build writes one position per cell");
+                float[] position = new float[3];
+                using (var g = new System.IO.Compression.GZipStream(File.OpenRead(Points.PositionFile(root)), System.IO.Compression.CompressionMode.Decompress)) g.ReadExactly(System.Runtime.InteropServices.MemoryMarshal.AsBytes(position.AsSpan()));
+                Check(position.All(v => Math.Abs(v - 1f) < 1e-6f), "cell centre is the volume centroid");
+                Points.OutputDirectory = Points.PointsDirectory(root); Points.CaseDirectory = foam; Points.ProcessorCount = 1;
+                Points.Fields = Points.Selected(new PointsConfig { velocity = true, temperature = false, pressure = true, density = false });
+                foreach (string t in new[] { "0.0001", "0.0002", "0.0003", "0.0004", "0.0005" })
+                {
+                    Directory.CreateDirectory(Path.Combine(foam, t));
+                    File.WriteAllText(Path.Combine(foam, t, "U"), header + "internalField uniform (" + t + " 0 -1);\nboundaryField\n{\n a { type zeroGradient; }\n}\n");
+                    File.WriteAllText(Path.Combine(foam, t, "p"), header + "internalField uniform 101325;\nboundaryField\n{\n a { type zeroGradient; }\n}\n");
+                }
+                string[] procs = Points.FindProcessors();
+                string[] ready = Points.ReadyTimes(procs, new HashSet<string>());
+                Check(ready.SequenceEqual(new[] { "0.0001", "0.0002" }), "only times with three newer ones are ready");
+                Points.Process(procs, Points.Offsets(procs), ready[0]);
+                Check(!Directory.Exists(Path.Combine(foam, "0.0001")) && Directory.Exists(Path.Combine(foam, "0.0002")), "processed time is deleted, others kept");
+                float[] one = new float[4];
+                using (var g = new System.IO.Compression.GZipStream(File.OpenRead(Path.Combine(Points.OutputDirectory, "000s000ms100us000ns.bin.gz")), System.IO.Compression.CompressionMode.Decompress)) g.ReadExactly(System.Runtime.InteropServices.MemoryMarshal.AsBytes(one.AsSpan()));
+                Check(one.SequenceEqual(new float[] { 0.0001f, 0f, -1f, 101325f }), "frame holds vX vY vZ then pressure");
+                Check(Points.FrameCount(Points.OutputDirectory) == 1, "frame count ignores position.bin.gz");
+                float[] path = new float[] { 1.5f, -2f, 3f };
+                Points.Compression = System.IO.Compression.CompressionLevel.Fastest;
+                string gz = Path.Combine(tmp, "x.bin.gz");
+                Points.WriteFloats(gz, path);
+                using var read = new System.IO.Compression.GZipStream(File.OpenRead(gz), System.IO.Compression.CompressionMode.Decompress);
+                byte[] raw = new byte[12]; read.ReadExactly(raw);
+                Check(raw.SequenceEqual(System.Runtime.InteropServices.MemoryMarshal.AsBytes(path.AsSpan()).ToArray()), "frames round-trip as raw float32");
             }
-            finally { Directory.Delete(plotDir, true); }
-            Check(Throws(() => AudioPlots.Validate(new AudioPlotConfig { labelFontPixels = 80 })), "unreadable plot layouts are rejected");
-            Check(Throws(() => AudioPlots.Validate(null)), "null plots config is rejected");
+            finally { Directory.Delete(tmp, true); }
         }
 
         Console.WriteLine(failures == 0 ? "All checks passed." : failures + " check(s) failed.");

@@ -44,7 +44,7 @@ public static class BackgroundMesh
     }
     public static Domain Layout(Bounds solid, Bounds inlet, Config c)
     {
-        double cell = c.backgroundCellSizeMillimeters;
+        double cell = c.refinement.backgroundCellSizeMillimeters;
         Padding p = c.worldPaddingMillimeters;
         double[] low = { p.xMin, p.yMin, p.zMin }, high = { p.xMax, p.yMax, p.zMax };
         double[] min = Enumerable.Range(0, 3).Select(a => Edge(solid.Min[a], low[a], cell, false)).ToArray();

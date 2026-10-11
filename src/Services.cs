@@ -51,7 +51,7 @@ public static class Services
             "StandardOutput=append:"+Path.Combine(Paths.Logs(root),kind+".log").Replace("%","%%")+"\nStandardError=inherit\n"+
             "Environment=FOAM_FILEHANDLER=uncollated\n";
     }
-    public static void Start(string root,string kind,bool follow=true)
+    public static void Start(string root,string kind)
     {
         using(Paths.Lock(root,"build"))
         {
@@ -75,67 +75,23 @@ public static class Services
             }
         }
         Console.WriteLine(State(root,kind));
-        if(!follow)return;
-        Console.WriteLine("Following "+kind+". Press Ctrl+C to detach; the service keeps running.");
-        Follow(root,kind);
     }
-    // Operator handle: start both jobs detached; renderer waits for solver output.
+    // Operator handle: start both jobs detached; the watcher waits for solver output.
     public static void StartAll(string root)
     {
-        foreach(string kind in new[]{"simulate","render"})Start(root,kind,false);
+        foreach(string kind in new[]{"simulate","watch"})Start(root,kind);
         Console.WriteLine("Started. Logs are in "+Paths.Logs(root));
         Progress.Run(root);
     }
-    // Stop the renderer first, then the solver. Always attempt both before reporting failure.
+    // Stop the watcher first, then the solver. Always attempt both before reporting failure.
     public static void StopAll(string root)
     {
         var errors=new List<string>();
-        foreach(string kind in new[]{"render","simulate"})
+        foreach(string kind in new[]{"watch","simulate"})
         {
             try{Stop(root,kind);}catch(Exception e){errors.Add(kind+": "+e.Message);}
         }
         if(errors.Count>0)throw new Exception(string.Join("\n",errors));
-    }
-    // Stop services, then return a built case to t=0: keep the mesh, decomposition and initial fields, delete
-    // every result (solver times, probe histories, renders, audio, report) and the solver/render logs.
-    public static void Reset(string root)
-    {
-        StopAll(root);
-        string foam=Paths.Foam(root);
-        if(!File.Exists(Path.Combine(foam,".built")))throw new Exception("Case is not fully built. Run ocarina build DIR first.");
-        using(var gate=Paths.Lock(root,"build"))
-        {
-            var targets=new List<string>();
-            var parts=new List<string>{foam};
-            parts.AddRange(Directory.GetDirectories(foam,"processor*"));
-            foreach(string part in parts)
-            {
-                foreach(string directory in Directory.GetDirectories(part))
-                {
-                    string name=Path.GetFileName(directory);
-                    if(double.TryParse(name,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out double time)&&double.IsFinite(time)&&time>0)targets.Add(directory);
-                }
-                targets.Add(Path.Combine(part,"postProcessing"));
-            }
-            foreach(string name in new[]{"renders","previews","audio","videos","wav",".report-tmp"})targets.Add(Path.Combine(root,name));
-            string logs=Path.Combine(root,"logs");
-            if(Directory.Exists(logs))targets.AddRange(Directory.GetFileSystemEntries(logs).Where(e=>!Path.GetFileName(e).StartsWith("build-")&&Directory.Exists(e)));
-            foreach(string path in targets)
-            {
-                if(!Directory.Exists(path))continue;
-                Directory.Delete(path,true);
-                Console.WriteLine("removed "+path);
-            }
-            var files=new List<string>{Path.Combine(root,"report.html"),Path.Combine(root,"report.zip")};
-            if(Directory.Exists(logs))files.AddRange(Directory.GetFiles(logs));
-            foreach(string path in files)
-            {
-                if(!File.Exists(path))continue;
-                File.Delete(path);
-                Console.WriteLine("removed "+path);
-            }
-        }
-        Console.WriteLine("Reset to t=0. Run ocarina start "+root+" to begin again.");
     }
     // Stop services, then delete everything generated; inputs (STLs, config.json, model files) stay.
     public static void Clean(string root)
@@ -143,19 +99,12 @@ public static class Services
         StopAll(root);
         using(var gate=Paths.Lock(root,"build"))
         {
-            var targets=new List<string>{Paths.Foam(root),Path.Combine(root,"renders"),Path.Combine(root,"previews"),Path.Combine(root,"audio"),Path.Combine(root,"logs"),Path.Combine(root,"videos"),Path.Combine(root,"wav"),Path.Combine(root,".report-tmp")};
+            var targets=new List<string>{Paths.Foam(root),Points.PointsDirectory(root),Path.Combine(root,"logs")};
             targets.AddRange(Directory.GetDirectories(root,".foam-build-*"));
             foreach(string path in targets)
             {
                 if(!Directory.Exists(path))continue;
                 Directory.Delete(path,true);
-                Console.WriteLine("removed "+path);
-            }
-            foreach(string file in new[]{"report.html","report.zip"})
-            {
-                string path=Path.Combine(root,file);
-                if(!File.Exists(path))continue;
-                File.Delete(path);
                 Console.WriteLine("removed "+path);
             }
         }
@@ -184,34 +133,5 @@ public static class Services
         if(File.Exists(file))File.Delete(file);
         Require("daemon-reload");
         Console.WriteLine(kind+" stopped; unit removed. Logs and results retained.");
-    }
-    public static void Follow(string root,string kind)
-    {
-        bool detach=false;
-        ConsoleCancelEventHandler cancel=(_,e)=>{e.Cancel=true;detach=true;};
-        Console.CancelKeyPress+=cancel;
-        string path=Path.Combine(Paths.Logs(root),kind+".log");
-        try
-        {
-            using var file=new FileStream(path,FileMode.OpenOrCreate,FileAccess.Read,FileShare.ReadWrite);
-            // Reattach prints a bounded recent tail, then follows subsequent bytes.
-            if(file.Length>32768)file.Seek(-32768,SeekOrigin.End);
-            using var reader=new StreamReader(file,Encoding.UTF8);
-            while(!detach)
-            {
-                string text=reader.ReadToEnd(); if(text.Length>0)Console.Write(text);
-                string active=Active(root,kind);
-                if(active is not ("active" or "activating"))
-                {
-                    text=reader.ReadToEnd();if(text.Length>0)Console.Write(text);
-                    Console.WriteLine(State(root,kind));
-                    if(active=="failed")throw new Exception(kind+" failed; see "+path+". It will not restart automatically.");
-                    return;
-                }
-                Thread.Sleep(1000);
-            }
-        }
-        finally {Console.CancelKeyPress-=cancel;}
-        Console.WriteLine("Detached.");
     }
 }

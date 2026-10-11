@@ -10,45 +10,34 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help" or "-h")
             {
-                Console.WriteLine("ocarina build DIR\nocarina simulate [stop] DIR\nocarina render [stop] DIR\nocarina render preview DIR\nocarina start DIR\nocarina stop DIR\nocarina reset DIR\nocarina clean DIR\nocarina audio DIR\nocarina report DIR\nocarina check DIR\nocarina self-test");
+                Console.WriteLine("ocarina DIR        build if needed, then start the solver and watcher and monitor them (Ctrl+C leaves them running)\nocarina stop DIR   stop the solver and watcher\nocarina clean DIR  stop, then delete everything generated\nocarina self-test");
                 return 0;
             }
             if (args.Length == 1 && args[0] == "self-test") return SelfTest.Run();
-            if (args.Length == 3 && args[0] == "render" && args[1] == "preview")
+            if (args.Length == 2 && args[0] is ("stop" or "clean"))
             {
-                string previewRoot = Paths.Canonical(args[2]);
-                Config config = Configuration.Built(previewRoot);
-                Renderer.Configure(previewRoot, config, false);
-                Renderer.Preview(previewRoot);
+                string target = Paths.Canonical(args[1]);
+                if (args[0] == "stop") Services.StopAll(target); else Services.Clean(target);
                 return 0;
             }
-            bool stop = args.Length == 3 && args[1] == "stop";
-            if (args.Length != 2 && !stop) throw new ArgumentException("Use: ocarina help");
+            if (args.Length == 1)
+            {
+                string root = Paths.Canonical(args[0]);
+                if (!File.Exists(Path.Combine(Paths.Foam(root), ".built"))) BuildCase.Run(root);
+                Services.StartAll(root);
+                return 0;
+            }
+            if (args.Length != 2 || args[0] is not ("_simulate" or "_watch")) throw new ArgumentException("Use: ocarina help");
             string command = args[0];
-            if (stop && command is not ("simulate" or "render")) throw new ArgumentException("Only simulate and render support stop.");
-            string root = Paths.Canonical(args[^1]);
-            if (command == "build") { BuildCase.Run(root); return 0; }
-            if (command == "start" && !stop) { Services.StartAll(root); return 0; }
-            if (command == "stop" && !stop) { Services.StopAll(root); return 0; }
-            if (command == "reset" && !stop) { Services.Reset(root); return 0; }
-            if (command == "clean" && !stop) { Services.Clean(root); return 0; }
-            if (command == "audio" && !stop) { Audio.Run(root); return 0; }
-            if (command == "report" && !stop) { Report.Run(root); return 0; }
-            if (command == "check") { Status.Run(root); return 0; }
-            if (command is "simulate" or "render")
+            string service = Paths.Canonical(args[1]);
+            // Service entrypoints; intentionally absent from the public help.
+            if (command == "_simulate") { Solver.Run(service); return 0; }
+            if (command == "_watch")
             {
-                if (stop) Services.Stop(root, command);
-                else Services.Start(root, command);
-                return 0;
-            }
-            // systemd's entrypoints; intentionally absent from the public help.
-            if (command == "_simulate") { Solver.Run(root); return 0; }
-            if (command == "_render")
-            {
-                using var gate = Paths.Lock(root, "render");
-                Config config = Configuration.Built(root);
-                Renderer.Configure(root, config);
-                Renderer.Run();
+                using var gate = Paths.Lock(service, "watch");
+                Config config = Configuration.Built(service);
+                Points.Configure(service, config);
+                Points.Watch();
                 return 0;
             }
             throw new ArgumentException("Unknown command. Use: ocarina help");
