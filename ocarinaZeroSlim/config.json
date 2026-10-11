@@ -1,6 +1,6 @@
 ﻿{
   "watcher": "systemd",
-  "processorCount": 6,
+  "processorCount": 1,
   "worldPaddingMillimeters": {
     "xMin": 0,
     "xMax": 0,
@@ -82,7 +82,7 @@
     "slowedAudioMinimumSampleRateHz": 8000
   },
   "renderer": {
-    "renderThreads": 6,
+    "renderThreads": 1,
     "pollMilliseconds": 2000,
     "pngCompressionLevel": 6,
     "plotWidth": 2048,
