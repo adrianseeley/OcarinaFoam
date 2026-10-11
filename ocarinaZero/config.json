@@ -1,6 +1,6 @@
 {
   "watcher": "systemd",
-  "processorCount": 6,
+  "processorCount": 1,
   "worldPaddingMillimeters": {
     "xMin": 0,
     "xMax": 0,
@@ -38,8 +38,8 @@
   "deltaT": "000s000ms000us100ns",
   "lastT": "000s050ms000us000ns",
   "points": {
-    "keepEvery": 100,
-    "pollMilliseconds": 2000,
+    "keepEvery": 50,
+    "pollMilliseconds": 30000,
     "compression": "smallest",
     "mantissaBits": 12,
     "velocity": true,

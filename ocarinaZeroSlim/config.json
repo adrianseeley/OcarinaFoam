@@ -38,7 +38,7 @@
   "deltaT": "000s000ms000us100ns",
   "lastT": "000s050ms000us000ns",
   "points": {
-    "keepEvery": 10,
+    "keepEvery": 50,
     "pollMilliseconds": 30000,
     "compression": "smallest",
     "mantissaBits": 12,
