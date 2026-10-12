@@ -1,0 +1,16 @@
+ocarina render ocarinaZero pressure "*" fromRight gameboy 8x0.2 'x>-0.5&&x<0.5'
+ocarina render ocarinaZeroSlim pressure "*" fromRight gameboy 8x0.2 'x>-0.5&&x<0.5'
+ocarina render ocarinaZeroSlimC pressure "*" fromRight gameboy 8x0.2 'x>-0.5&&x<0.5'
+ocarina render ocarinaZeroSlimD pressure "*" fromRight gameboy 8x0.2 'x>-0.5&&x<0.5'
+ocarina render ocarinaZeroSlimDonut pressure "*" fromRight gameboy 8x0.2 'x>-0.5&&x<0.5'
+ocarina render ocarinaZeroSlimN pressure "*" fromRight gameboy 8x0.2 'x>-0.5&&x<0.5'
+ocarina render ocarinaZeroSlimU pressure "*" fromRight gameboy 8x0.2 'x>-0.5&&x<0.5'
+
+
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZero/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZero-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlim/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlim-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimC/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimC-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimD/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimD-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimDonut/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimDonut-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimN/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimN-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimU/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimU-pressure.mp4 -y

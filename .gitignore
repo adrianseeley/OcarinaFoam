@@ -6,3 +6,4 @@ obj/
 **/logs/
 **/.*.lock
 **/renders/
+*.mp4

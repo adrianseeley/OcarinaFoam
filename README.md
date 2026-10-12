@@ -142,6 +142,7 @@ back to front. Append one quoted, space-free condition to select a region, for e
 with `&&`; supported comparisons are `<`, `>`, `<=`, `>=`, `==`, and `!=`. The shell quotes
 are required so `&&`, `<`, and `>` are passed as one argument. Rendering still splats the
 selected original points; it does not load the STL, interpolate, or generate a plane.
+Use `inferno`, the olive-green `gameboy`, or the cool-neutral-warm diverging `vanimo` colour scheme.
 
 Use `*` for the time argument to render every saved frame. The renderer first scans every
 frame for the selected points' finite scalar minimum and maximum, then renders frames in

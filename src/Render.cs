@@ -11,6 +11,19 @@ public static class Render
         (0.5, 186, 54, 85), (0.63, 227, 89, 51), (0.75, 249, 140, 10), (0.88, 249, 201, 50), (1.0, 252, 255, 164)
     };
 
+    static readonly (double T, double R, double G, double B)[] GameBoy =
+    {
+        (0.0, 15, 56, 15), (0.2, 33, 82, 26), (0.4, 57, 112, 31),
+        (0.6, 88, 143, 22), (0.8, 139, 172, 15), (1.0, 180, 198, 42)
+    };
+
+    static readonly (double T, double R, double G, double B)[] Vanimo =
+    {
+        (0.0, 255, 205, 253), (0.125, 205, 120, 189), (0.25, 155, 68, 136),
+        (0.375, 84, 33, 72), (0.5, 31, 20, 25), (0.625, 47, 64, 24),
+        (0.75, 89, 123, 42), (0.875, 140, 190, 85), (1.0, 190, 253, 165)
+    };
+
     readonly record struct Condition(int Axis, string Operator, double Value)
     {
         public bool Matches(float[] positions, int point)
@@ -33,16 +46,22 @@ public static class Render
 
     static (byte R, byte G, byte B) Color(string name, double t)
     {
-        if (name != "inferno") throw new ArgumentException($"Unknown color '{name}'. Supported: inferno.");
-        t = Math.Clamp(t, 0, 1);
-        for (int i = 1; i < Inferno.Length; i++)
+        (double T, double R, double G, double B)[] palette = name switch
         {
-            if (t > Inferno[i].T) continue;
-            var a = Inferno[i - 1]; var b = Inferno[i];
+            "inferno" => Inferno,
+            "gameboy" => GameBoy,
+            "vanimo" => Vanimo,
+            _ => throw new ArgumentException($"Unknown color '{name}'. Supported: inferno, gameboy, vanimo.")
+        };
+        t = Math.Clamp(t, 0, 1);
+        for (int i = 1; i < palette.Length; i++)
+        {
+            if (t > palette[i].T) continue;
+            var a = palette[i - 1]; var b = palette[i];
             double f = (t - a.T) / (b.T - a.T);
             return ((byte)Math.Round(a.R + (b.R - a.R) * f), (byte)Math.Round(a.G + (b.G - a.G) * f), (byte)Math.Round(a.B + (b.B - a.B) * f));
         }
-        return ((byte)Inferno[^1].R, (byte)Inferno[^1].G, (byte)Inferno[^1].B);
+        return ((byte)palette[^1].R, (byte)palette[^1].G, (byte)palette[^1].B);
     }
 
     static Condition[] ParseCondition(string text)
