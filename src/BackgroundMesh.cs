@@ -44,7 +44,7 @@ public static class BackgroundMesh
     }
     public static Domain Layout(Bounds solid, Bounds inlet, Config c)
     {
-        double cell = c.refinement.backgroundCellSizeMillimeters;
+        double cell = c.cellSizeMillimeters;
         Padding p = c.worldPaddingMillimeters;
         double[] low = { p.xMin, p.yMin, p.zMin }, high = { p.xMax, p.yMax, p.zMax };
         double[] min = Enumerable.Range(0, 3).Select(a => Edge(solid.Min[a], low[a], cell, false)).ToArray();
@@ -78,14 +78,14 @@ public static class BackgroundMesh
         Axis(d.X, d.Min[0], d.Max[0], "X"); Axis(d.Z, d.Min[2], d.Max[2], "Z");
         if (d.Ny < 1) throw new Exception("Empty Y domain.");
     }
-    // Distance from v to the nearest cell face when the bands are refined by 2^level.
-    public static double FaceClearance(List<Band> bands, double v, int level)
+    // Distance from v to the nearest cell face.
+    public static double FaceClearance(List<Band> bands, double v, int level = 0)
     {
         Band b = bands.First(x => v >= x.Start && v <= x.End);
         double w = (b.End - b.Start) / b.Cells / Math.Pow(2, level), t = (v - b.Start) / w;
         return Math.Abs(t - Math.Round(t)) * w;
     }
-    public static double FaceClearanceY(Domain d, int level)
+    public static double FaceClearanceY(Domain d, int level = 0)
     {
         double w = (d.Max[1] - d.Min[1]) / d.Ny / Math.Pow(2, level), t = (d.Location[1] - d.Min[1]) / w;
         return Math.Abs(t - Math.Round(t)) * w;

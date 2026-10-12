@@ -38,7 +38,6 @@ public static class BuildCase
             CommandResult surface=Run("surfaceCheck","constant/triSurface/solidBody.stl");
             if(!surface.Output.Contains("Surface is closed",StringComparison.OrdinalIgnoreCase))throw new Exception("solidBody must be a closed surface. See surfaceCheck log.");
             Run("surfaceCheck","constant/triSurface/spawnPlane.stl");
-            Run("surfaceFeatureExtract");
             CommandResult block=Run("blockMesh");
             Run("snappyHexMesh","-overwrite");
             CommandResult mesh=Run("checkMesh","-allTopology");
@@ -76,13 +75,10 @@ public static class BuildCase
         v["DELTA_T"]=Points.Seconds(c.DeltaNs());
         v["END_TIME"]=Points.Seconds(c.EndNs());
         Set("FAR_FIELD_RELAXATION_LENGTH",c.physics.farFieldRelaxationLengthMeters);Set("FIELD_WRITE_INTERVAL",c.KeepEvery());
-        Set("FEATURE_INCLUDED_ANGLE_DEGREES",c.refinement.feature.includedAngleDegrees);Set("FEATURE_REFINEMENT_LEVEL",c.refinement.feature.level);
-        Set("N_CELLS_BETWEEN_LEVELS",c.refinement.cellsBetweenLevels);Set("INITIAL_PRESSURE",c.physics.ambientPressureHectopascals*100);
+        Set("INITIAL_PRESSURE",c.physics.ambientPressureHectopascals*100);
         Set("INITIAL_TEMPERATURE",c.physics.initialTemperatureCelsius+273.15);Set("INLET_VELOCITY",c.physics.inletVelocityMetersPerSecond);
         Set("PROCESSOR_COUNT",c.processorCount);
-        Set("SURFACE_REFINEMENT_MAX_LEVEL",c.refinement.surface.maxLevel);Set("SURFACE_REFINEMENT_MIN_LEVEL",c.refinement.surface.minLevel);
         v["PROBE_LOCATIONS"]=string.Join('\n',c.ProbeList().Select(p=>"            ("+Geometry.Point(p.point)+") // "+p.name));
-        v["DISTANCE_REFINEMENT_REGIONS"]="solidWalls\n{\n mode distance;\n levels\n(\n"+string.Join('\n',c.refinement.bodyDistanceLevelsMillimeters.Select((d,i)=>"("+Geometry.Number(d*.001)+" "+(i+1)+")").Reverse())+"\n);\n}";
         string template=Path.Combine(AppContext.BaseDirectory,"foamTemplate");
         if(!Directory.Exists(template))throw new DirectoryNotFoundException("Publish output is missing foamTemplate: "+template);
         Directory.CreateDirectory(output);
@@ -99,7 +95,7 @@ public static class BuildCase
         File.WriteAllText(Path.Combine(output,"bounds.json"),JsonSerializer.Serialize(bounds,Configuration.Json));
         File.WriteAllText(Path.Combine(output,".ocarina"),"beta-1\n");File.WriteAllText(Path.Combine(output,"case.foam"),"");
         double sound=Math.Sqrt((1+gasConstant/molWeight/cv)*gasConstant/molWeight*(c.physics.initialTemperatureCelsius+273.15));
-        double nominal=c.refinement.backgroundCellSizeMillimeters*.001/Math.Pow(2,Math.Max(c.refinement.feature.level,c.refinement.surface.maxLevel));
-        Console.WriteLine($"Nominal smallest surface cell {nominal:G5} m; estimated acoustic Courant {sound*(c.DeltaNs()/1e9)/nominal:G5}. Actual snapped cells may be smaller.");
+        double nominal=c.cellSizeMillimeters*.001;
+        Console.WriteLine($"Nominal cell size {nominal:G5} m; estimated acoustic Courant {sound*(c.DeltaNs()/1e9)/nominal:G5}. Actual snapped cells may be smaller.");
     }
 }

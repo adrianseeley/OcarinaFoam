@@ -9,19 +9,7 @@
     "zMin": 0,
     "zMax": 25
   },
-  "refinement": {
-    "backgroundCellSizeMillimeters": 2,
-    "cellsBetweenLevels": 3,
-    "surface": {
-      "minLevel": 3,
-      "maxLevel": 3
-    },
-    "feature": {
-      "level": 3,
-      "includedAngleDegrees": 150
-    },
-    "bodyDistanceLevelsMillimeters": [10, 5, 2]
-  },
+  "cellSizeMillimeters": 0.8,
   "physics": {
     "inletVelocityMetersPerSecond": 12,
     "ambientPressureHectopascals": 1013.25,

@@ -1,24 +1,3 @@
-public class SurfaceRefinement
-{
-    public int minLevel = 3;
-    public int maxLevel = 5;
-}
-
-public class FeatureRefinement
-{
-    public int level = 5;
-    public int includedAngleDegrees = 150;
-}
-
-public class RefinementConfig
-{
-    public int backgroundCellSizeMillimeters = 5;
-    public int cellsBetweenLevels = 3;
-    public SurfaceRefinement surface = null;
-    public FeatureRefinement feature = null;
-    public double[] bodyDistanceLevelsMillimeters = null;
-}
-
 public class DampingConfig
 {
     public bool enabled = true;
@@ -41,7 +20,7 @@ public class Config
 {
     public int processorCount = 6;
     public Padding worldPaddingMillimeters = null;
-    public RefinementConfig refinement = null;
+    public double cellSizeMillimeters = 0.5;
     public PhysicsConfig physics = null;
     public string deltaT = "000s000ms000us100ns";
     public string lastT = "003s000ms000us000ns";

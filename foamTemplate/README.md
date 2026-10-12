@@ -22,7 +22,7 @@ studying that assumption, and record the resulting case inputs and code revision
 | Body | Rigid, stationary, no-slip, adiabatic fluid wall |
 | Radiation | `waveTransmissive` pressure plus spherical velocity sponge |
 | Clock | Fixed timestep, fixed step-based field and probe output |
-| Mesh | Static, feature-refined, snapped, no prism layers |
+| Mesh | Static, snapped to body, fixed cell size, no refinement, no prism layers |
 | Partitioning | Serial at one rank; scotch/uncollated at multiple ranks |
 | Geometry units | Input ASCII STL in mm; converted once to metres |
 | Disk fields | ASCII, gzip compressed; no OpenFOAM purge |
@@ -45,12 +45,7 @@ this snapshot and the case's current points section; it never regenerates code.
 |---|---|
 | `processorCount` | MPI ranks; 6 in the sample. Match available CPU/RAM. The watcher also needs CPU and memory. |
 | `worldPaddingMillimeters` | Six per-side paddings around body bounds; yMin must be 0. **0 means exactly the solid's bound** (not rounded to the grid); positive values round outward to the grid. The class default is 100 mm per side; the sample config uses 0 everywhere except zMax = 100 (reduced-domain experiment). A positive zMax of at least two cells is required: locationInMesh lives in that air. |
-| `refinement.backgroundCellSizeMillimeters` | 5 mm coarse grid before refinement. Inlet-aligned remainder bands can be smaller. |
-| `refinement.surface.minLevel`, `refinement.surface.maxLevel` | 3 / 5; approximate coarse-cell halvings at the surface. |
-| `refinement.feature.level` | 5 around extracted features; scale matches the body surface. |
-| `refinement.cellsBetweenLevels` | 3; refinement-transition spacing. |
-| `refinement.bodyDistanceLevelsMillimeters` | Distances in mm, strictly decreasing; entry N is level N (rank implies the level). Default `[10, 5, 2]`: 10 mm level 1, 5 mm level 2, 2 mm level 3. |
-| `refinement.feature.includedAngleDegrees` | 150; threshold for extracted sharp edges, separate from snapping feature angle. |
+| `cellSizeMillimeters` | Fixed cell size in mm throughout the domain. Inlet-aligned remainder bands can be smaller. |
 | `physics.inletVelocityMetersPerSecond` | 12; prescribed flow speed, not supply pressure or microphone particle velocity. |
 | `physics.ambientPressureHectopascals` | 1013.25 hPa = 101325 Pa absolute. |
 | `physics.initialTemperatureCelsius` | 26.85 Â°C = 300 K. |

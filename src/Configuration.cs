@@ -45,9 +45,9 @@ public static class Configuration
             text = node.ToJsonString();
         }
         Config c = JsonSerializer.Deserialize<Config>(text, Json) ?? throw new Exception("Empty config.");
-        if (c.worldPaddingMillimeters == null || c.refinement.bodyDistanceLevelsMillimeters == null || c.probes == null)
-            throw new Exception("Config requires worldPaddingMillimeters, points, bodyDistanceRefinementLevelsMillimeters and probes.");
-        Positive(c.processorCount, "processorCount"); Positive(c.refinement.backgroundCellSizeMillimeters, "refinement.backgroundCellSizeMillimeters");
+        if (c.worldPaddingMillimeters == null || c.probes == null)
+            throw new Exception("Config requires worldPaddingMillimeters, points, and probes.");
+        Positive(c.processorCount, "processorCount"); Positive(c.cellSizeMillimeters, "cellSizeMillimeters");
         long delta = c.DeltaNs(), last = c.LastNs();
         if (delta <= 0) throw new Exception("deltaT must be positive.");
         if (c.points == null) throw new Exception("Config requires points.");
@@ -64,18 +64,6 @@ public static class Configuration
         Nonnegative(c.physics.damping.clearanceMillimeters, "physics.damping.clearanceMillimeters");
         foreach (var f in typeof(Padding).GetFields()) Nonnegative((double)Convert.ToDouble(f.GetValue(c.worldPaddingMillimeters)), f.Name);
         if (c.worldPaddingMillimeters.yMin != 0) throw new Exception("The inlet lies on y=0; yMin padding must be zero.");
-        foreach (int level in new[] { c.refinement.surface.minLevel, c.refinement.surface.maxLevel, c.refinement.feature.level })
-            if (level < 0 || level > 12) throw new Exception("Refinement levels must be 0..12.");
-        if (c.refinement.surface.minLevel > c.refinement.surface.maxLevel) throw new Exception("Minimum refinement exceeds maximum.");
-        Positive(c.refinement.cellsBetweenLevels, "refinement.cellsBetweenLevels");
-        if (c.refinement.feature.includedAngleDegrees <= 0 || c.refinement.feature.includedAngleDegrees > 180) throw new Exception("Feature angle must be (0,180].");
-        double[] rings = c.refinement.bodyDistanceLevelsMillimeters;
-        if (rings.Length > 12) throw new Exception("bodyDistanceRefinementLevelsMillimeters supports at most 12 levels.");
-        for (int i = 0; i < rings.Length; i++)
-        {
-            Positive(rings[i], "bodyDistanceRefinementLevelsMillimeters entry");
-            if (i > 0 && rings[i] >= rings[i - 1]) throw new Exception("bodyDistanceRefinementLevelsMillimeters must strictly decrease: entry N is the distance for level N.");
-        }
         foreach (Probe probe in c.ProbeList())
             if (probe.point == null || probe.point.Length != 3 || probe.point.Any(v => !double.IsFinite(v)) || string.IsNullOrWhiteSpace(probe.name) || probe.name.Any(ch => !char.IsAsciiLetterOrDigit(ch) && ch != '_'))
                 throw new Exception("Each probe requires a simple alphanumeric name and three finite coordinates in metres.");

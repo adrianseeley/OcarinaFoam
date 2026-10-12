@@ -99,7 +99,7 @@ public static class Services
         StopAll(root);
         using(var gate=Paths.Lock(root,"build"))
         {
-            var targets=new List<string>{Paths.Foam(root),Points.PointsDirectory(root),Path.Combine(root,"logs")};
+            var targets=new List<string>{Paths.Foam(root),Points.PointsDirectory(root),Path.Combine(root,"logs"),Path.Combine(root,"renders")};
             targets.AddRange(Directory.GetDirectories(root,".foam-build-*"));
             foreach(string path in targets)
             {

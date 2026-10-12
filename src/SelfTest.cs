@@ -5,7 +5,7 @@ public static class SelfTest
     static int failures;
     static void Check(bool ok, string name) { Console.WriteLine((ok ? "PASS " : "FAIL ") + name); if (!ok) failures++; }
     static bool Throws(Action a) { try { a(); return false; } catch (Exception) { return true; } }
-    static Config Cfg(Padding p) => new Config { worldPaddingMillimeters = p, refinement = new RefinementConfig { backgroundCellSizeMillimeters = 5 } };
+    static Config Cfg(Padding p) => new Config { worldPaddingMillimeters = p, cellSizeMillimeters = 5 };
     static Bounds B(double[] min, double[] max) => new Bounds { Min = min, Max = max };
     static double Span(List<Band> bands) => bands.Sum(b => b.End - b.Start);
     public static int Run()
@@ -14,15 +14,15 @@ public static class SelfTest
         Config c = Configuration.Load(Path.Combine(dir, "config.json"));
         string full = File.ReadAllText(Path.Combine(dir, "config.json"));
         string Without(string key) { var node = System.Text.Json.Nodes.JsonNode.Parse(full, null, new System.Text.Json.JsonDocumentOptions { CommentHandling = System.Text.Json.JsonCommentHandling.Skip }); var path = key.Split('.'); var o = node.AsObject(); for (int i = 0; i < path.Length - 1; i++) o = o[path[i]].AsObject(); o.Remove(path[^1]); string f = Path.Combine(Path.GetTempPath(), "ocarina-cfg-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, node.ToJsonString()); return f; }
-        foreach (string key in new[] { "watcher", "points", "points.compression", "probes", "refinement.surface.minLevel", "physics.damping" })
+        foreach (string key in new[] { "watcher", "points", "points.compression", "probes", "cellSizeMillimeters", "physics.damping" })
         {
             string f = Without(key);
             try { Check(Throws(() => Configuration.Load(f)), "missing config key is an error: " + key); } finally { File.Delete(f); }
         }
         Check(c.points != null, "example points config loads");
         Check(Points.ParseTime("000s000ms000us100ns", "t") == 100 && Points.Seconds(100) == "0.0000001" && Points.Seconds(50_000_000) == "0.05", "time strings parse and print without exponent");
-        Check(c.Steps() == 500000 && c.Frames() == 5000 && Points.Seconds(c.EndNs()) == "0.05003", "example timing: 500000 steps, 5000 frames, three guard writes");
-        foreach (var (what, from, to) in new[] { ("lastT off the step grid", "\"lastT\": \"000s050ms000us000ns\"", "\"lastT\": \"000s050ms000us050ns\""), ("lastT not a multiple of keepEvery", "\"keepEvery\": 100", "\"keepEvery\": 7"), ("malformed time", "\"deltaT\": \"000s000ms000us100ns\"", "\"deltaT\": \"1e-7\"") })
+        Check(c.Steps() == 500000 && c.Frames() == 10000 && Points.Seconds(c.EndNs()) == "0.050015", "example timing: 500000 steps, 10000 frames, three guard writes");
+        foreach (var (what, from, to) in new[] { ("lastT off the step grid", "\"lastT\": \"000s050ms000us000ns\"", "\"lastT\": \"000s050ms000us050ns\""), ("lastT not a multiple of keepEvery", "\"keepEvery\": 50", "\"keepEvery\": 7"), ("malformed time", "\"deltaT\": \"000s000ms000us100ns\"", "\"deltaT\": \"1e-7\"") })
         {
             Check(full.Contains(from), "timing mutation applies: " + what);
             string f = Path.Combine(Path.GetTempPath(), "ocarina-time-" + Guid.NewGuid().ToString("N") + ".json"); File.WriteAllText(f, full.Replace(from, to));
@@ -34,10 +34,10 @@ public static class SelfTest
         Bounds sb = Geometry.Bound(solid), ib = Geometry.Bound(inlet);
 
         Padding p = c.worldPaddingMillimeters;
-        Check(p.xMin == 0 && p.xMax == 0 && p.yMin == 0 && p.yMax == 0 && p.zMin == 0 && p.zMax == 100, "example config: zero padding except zMax 100");
+        Check(p.xMin == 0 && p.xMax == 0 && p.yMin == 0 && p.yMax == 0 && p.zMin == 0 && p.zMax == 25, "example config: zero padding except zMax 25");
         Domain d = BackgroundMesh.Layout(sb, ib, c);
         Check(d.Min[0] == sb.Min[0] && d.Max[0] == sb.Max[0] && d.Min[1] == sb.Min[1] && d.Max[1] == sb.Max[1] && d.Min[2] == sb.Min[2], "zero-padded sides equal the solid's exact bounds");
-        Check(d.Max[2] >= sb.Max[2] + 100 && d.Max[2] < sb.Max[2] + 100 + c.refinement.backgroundCellSizeMillimeters, "padded +Z side keeps outward grid rounding");
+        Check(d.Max[2] >= sb.Max[2] + 25 && d.Max[2] < sb.Max[2] + 25 + c.cellSizeMillimeters, "padded +Z side keeps outward grid rounding");
         Check(Math.Abs(Span(d.X) - (d.Max[0] - d.Min[0])) < 1e-9 && Math.Abs(Span(d.Z) - (d.Max[2] - d.Min[2])) < 1e-9, "blocks tile the domain exactly");
         Check(Throws(() => BackgroundMesh.Layout(sb, ib, Cfg(new Padding { xMin = 0, xMax = 0, yMin = 0, yMax = 0, zMin = 0, zMax = 0 }))), "no air above the body is rejected for locationInMesh");
 
@@ -63,13 +63,8 @@ public static class SelfTest
         Check(true, "configured probes lie inside the domain");
         Check(Throws(() => Preflight.ValidateProbes(d, new[] { new Probe { name = "farMic", point = new[] { 0, .15, .05 } } })), "probe beyond the cropped Y bound is rejected");
         Check(!c.probes.ContainsKey("farMic"), "example config no longer contains farMic");
-        int max = Math.Max(c.refinement.surface.maxLevel, c.refinement.feature.level);
-        bool clear = true;
-        for (int level = 0; level <= max; level++)
-        {
-            double cs = d.Cell / Math.Pow(2, level);
-            clear &= BackgroundMesh.FaceClearance(d.X, d.Location[0], level) > 1e-3 * cs && BackgroundMesh.FaceClearanceY(d, level) > 1e-3 * cs && BackgroundMesh.FaceClearance(d.Z, d.Location[2], level) > 1e-3 * cs;
-        }
+        double cs = d.Cell;
+        bool clear = BackgroundMesh.FaceClearance(d.X, d.Location[0]) > 1e-3 * cs && BackgroundMesh.FaceClearanceY(d) > 1e-3 * cs && BackgroundMesh.FaceClearance(d.Z, d.Location[2]) > 1e-3 * cs;
         Check(clear && d.Location[2] > sb.Max[2] + d.Cell, "locationInMesh is off every cell face and above the body");
 
         // Whole-geometry connectivity through voicing/chamber/throat on the real STLs.
