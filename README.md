@@ -132,6 +132,22 @@ pipeline: copy raw output separately if an experiment needs it for other post-pr
 The watcher always uses the case's `config.json`. Detailed lifetime/recovery rules are in
 the template guide.
 
+## Rendering selected points
+
+`ocarina render DIR pressure -t fromTop inferno 10x0.5` renders the point cloud from a named
+orthographic view. The required `PIXELSxALPHA` presentation makes each point an alpha-blended
+circular sprite; `10x0.5` means a 10-pixel diameter at 50% opacity. Points are composited
+back to front. Append one quoted, space-free condition to select a region, for example
+`'y>=0&&x<5'`. A condition joins comparisons of the millimetre `x`, `y`, and `z` coordinates
+with `&&`; supported comparisons are `<`, `>`, `<=`, `>=`, `==`, and `!=`. The shell quotes
+are required so `&&`, `<`, and `>` are passed as one argument. Rendering still splats the
+selected original points; it does not load the STL, interpolate, or generate a plane.
+
+Use `*` for the time argument to render every saved frame. The renderer first scans every
+frame for the selected points' finite scalar minimum and maximum, then renders frames in
+timestamp order using that shared colour range. Quote the asterisk so the shell does not
+expand it: `ocarina render DIR pressure '*' fromTop inferno 10x0.5`.
+
 On solver restart the CLI verifies latest-time agreement and mandatory fields on
 every rank. It restores the fixed sponge reference from each rank's initial state.
 It does not silently roll back a partially written solver step. The error and
