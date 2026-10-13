@@ -45,9 +45,9 @@ public static class Services
         var argv=new List<string>{exe};
         if(Path.GetFileNameWithoutExtension(exe)=="dotnet")argv.Add(Assembly.GetExecutingAssembly().Location);
         argv.Add("_"+kind);argv.Add(root);
-        return "[Unit]\nDescription=Ocarina "+kind+" "+Paths.Id(root)+"\n\n[Service]\nType=exec\n"+
+        return "[Unit]\nDescription=Ocarina "+kind+" "+Paths.Id(root)+"\nStartLimitIntervalSec=5min\nStartLimitBurst=5\n\n[Service]\nType=exec\n"+
             "WorkingDirectory="+root.Replace("%","%%")+"/"+"\nExecStart="+string.Join(' ',argv.Select(x=>Quote(x).Replace("$","$$")))+"\n"+
-            "Restart=no\nKillMode=control-group\nKillSignal=SIGTERM\nTimeoutStopSec=30\nSendSIGKILL=yes\n"+
+            "Restart=on-failure\nRestartSec=10\nKillMode=control-group\nKillSignal=SIGTERM\nTimeoutStopSec=30\nSendSIGKILL=yes\n"+
             "StandardOutput=append:"+Path.Combine(Paths.Logs(root),kind+".log").Replace("%","%%")+"\nStandardError=inherit\n"+
             "Environment=FOAM_FILEHANDLER=uncollated\n";
     }
@@ -59,6 +59,13 @@ public static class Services
             if(!OperatingSystem.IsLinux())throw new Exception("Service commands require Linux.");
             bool supervised=c.watcher=="supervisord";
             if(supervised)Supervisor.Prepare();else Require("show-environment");
+            if(!supervised)
+            {
+                Directory.CreateDirectory(UnitDirectory());
+                string file=Path.Combine(UnitDirectory(),Paths.Unit(root,kind));
+                Paths.Atomic(file,UnitText(root,kind));
+                Require("daemon-reload");
+            }
             string active=Active(root,kind);
             if(active is not ("active" or "activating"))
             {
@@ -66,10 +73,6 @@ public static class Services
                 if(supervised)Supervisor.Start(root,kind);
                 else
                 {
-                    Directory.CreateDirectory(UnitDirectory());
-                    string file=Path.Combine(UnitDirectory(),Paths.Unit(root,kind));
-                    Paths.Atomic(file,UnitText(root,kind));
-                    Require("daemon-reload");
                     Require("start",Paths.Unit(root,kind));
                 }
             }

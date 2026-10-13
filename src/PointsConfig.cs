@@ -5,6 +5,8 @@ public class PointsConfig
 {
     // Keep one solver write in every keepEvery steps; also the solver write interval in steps.
     public int keepEvery = 1;
+    // Sample acoustic probes in every probeEvery solver steps.
+    public int probeEvery = 1;
     public int pollMilliseconds = 2000;
     // "fastest", "optimal" or "smallest": Brotli effort (quality 4, 9, 11) for every frame; position.bin.br follows the same level.
     // Brotli at "smallest" is slow; the watcher must still keep up with the solver.

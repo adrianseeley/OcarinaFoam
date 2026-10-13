@@ -51,7 +51,8 @@ this snapshot and the case's current points section; it never regenerates code.
 | `physics.initialTemperatureCelsius` | 26.85 Â°C = 300 K. |
 | `deltaT` | `000s000ms000us100ns` = 1e-7 s step, in the frame-name format; nominal acoustic Courant estimate printed at build. Actual cell sizes matter. |
 | `lastT` | Time of the last frame to produce, same format. Must be a whole number of `deltaT` steps and of `points.keepEvery` steps or the config is rejected. The solver runs three extra write intervals past it so the watcher can convert the last frame. |
-| `points.keepEvery` | Solver writes full fields every this many steps (a fixed part of the build). Probes always sample every step. |
+| `points.keepEvery` | Solver writes full fields every this many steps (a fixed part of the build). |
+| `points.probeEvery` | Solver samples acoustic probes every this many steps (a fixed part of the build). |
 | `physics.farFieldRelaxationLengthMeters` | 0.1; waveTransmissive relaxation length, not sponge thickness. |
 | `physics.damping.enabled` | true; compare a disabled sponge only as an explicit experiment. |
 | `physics.damping.targetFrequencyHz` | 3000; source-strength scale, not a tuned band-pass filter. |
@@ -156,6 +157,3 @@ This is an experiment setting, not a restriction: all six values stay configurab
 - **Equivalence is unproven.** Compare probe waveforms (throat, mouth, chamberCenter, chamberBack,
   nearMic) against the larger-domain case before treating the reduced domain as equivalent;
   nearby open boundaries and a truncated sponge can reflect waves and change pressure/frequency.
-
-ocarina self-test checks exact zero-padding bounds, non-grid-aligned spans, block validity,
-inlet geometry, locationInMesh clearance, probe bounds and flood-fill connectivity.

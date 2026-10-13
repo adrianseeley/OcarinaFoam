@@ -9,7 +9,7 @@
     "zMin": 0,
     "zMax": 25
   },
-  "cellSizeMillimeters": 0.8,
+  "cellSizeMillimeters": 0.6,
   "physics": {
     "inletVelocityMetersPerSecond": 12,
     "ambientPressureHectopascals": 1013.25,
@@ -23,10 +23,11 @@
       "clearanceMillimeters": 20
     }
   },
-  "deltaT": "000s000ms000us100ns",
+  "deltaT": "000s000ms000us010ns",
   "lastT": "000s050ms000us000ns",
   "points": {
-    "keepEvery": 50,
+    "keepEvery": 100,
+    "probeEvery": 100,
     "pollMilliseconds": 30000,
     "compression": "smallest",
     "mantissaBits": 12,

@@ -84,14 +84,21 @@ ocarina clean "$HOME/myCase"
 | Command | Behaviour |
 |---|---|
 | `ocarina DIR` | If `DIR/foam/.built` is missing, build first: hydrate `DIR/foam`, check surfaces, extract features, mesh, check topology/geometry, decompose for MPI and write `points/position.bin.br`, one logged step at a time, stopping at the first failure. The `.built` marker is written last, so a failed build is simply retried by running the command again. Then start the solver and the watcher as detached services (already-running ones are left alone) and report every 30 s: service status, simulation time, frames simulated and written of the total, and percent complete. Ctrl+C stops the monitor only. Exits by itself when both services stop. Run it again after a stop to resume from the last complete solver write. |
+| `ocarina all` | From the current directory, launch every discovered case in a detached worker. Each worker builds if needed and starts its services; the command returns immediately. Worker output is written to each case's `logs/all.log`. |
 | `ocarina stop DIR` | Stop the watcher, then the solver, removing both units. Keeps logs/results. |
 | `ocarina clean DIR` | Stop both services, then delete everything generated: `foam/`, `points/`, `logs/`, failed build stages, lock files. Inputs (STLs, `config.json`) stay. |
+| `ocarina stop all` | From the current directory, stop every case found recursively in its subdirectories. |
+| `ocarina clean all` | From the current directory, stop and clean every case found recursively in its subdirectories. |
 
-Services continue after Ctrl+C and SSH logout. They do **not** restart on failure or
-after a reboot. A failed job stays stopped with its error visible; invoking its
-command again is an explicit retry. Unit names use the canonical case path, so cases
-with the same folder name do not collide. Always use the same account, and stop both
-services before moving a case. Multiple cases can run independently.
+Services continue after Ctrl+C and SSH logout. If a service exits unexpectedly, its
+watcher automatically retries it (systemd waits 10 seconds and limits repeated starts;
+supervisord also retries unexpected exits). Normal completion and an explicit
+`ocarina stop` are not restarted. After the restart limit is reached, inspect the
+service log and invoke `ocarina DIR` again for an explicit retry. Services do not
+start automatically after a reboot; run `ocarina DIR` once after reboot. Unit names
+use the canonical case path, so cases with the same folder name do not collide.
+Always use the same account, and stop both services before moving a case. Multiple
+cases can run independently.
 
 A build is published as `foam/` only after all steps pass. A failed build leaves its
 partial `.foam-build-*` directory and numbered logs for inspection. A mesh-only case
@@ -158,19 +165,13 @@ retained files let you diagnose what failed before explicitly retrying.
 
 One `ocarina.csproj` at the root, sources in `src/`, no application namespaces. Data types have public fields only.
 The `.cs` files contain static operations; points functions are split into
-`Points.*.cs` files sharing one static class. `foamTemplate/` owns simulation policy;
-`ocarinaZero/` owns the example's inputs. No legacy generators or generated case is
-shipped. Shell is used only for machine provisioning and sourcing OpenFOAM's own
-environment before executing its tools.
+`Points.*.cs` files sharing one static class. `foamTemplate/` owns simulation policy.
+No legacy generators or generated case is shipped. Shell is used only for machine
+provisioning and sourcing OpenFOAM's own environment before executing its tools.
 
 ```bash
 dotnet build -c Release --no-restore
-ocarina self-test
 ```
-
-Self-tests use tiny synthetic meshes/fields, exercise frame naming,
-field parsing, config contracts and
-case protection. They do not run a physical simulation or replace deployment testing.
 See [VALIDATION.md](VALIDATION.md) for the checks run on this revision and the remaining
 Ubuntu/OpenFOAM/watcher acceptance steps.
 

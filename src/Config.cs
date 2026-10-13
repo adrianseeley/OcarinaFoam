@@ -30,6 +30,7 @@ public class Config
     public long DeltaNs() => Points.ParseTime(deltaT, "deltaT");
     public long LastNs() => Points.ParseTime(lastT, "lastT");
     public int KeepEvery() => points.keepEvery;
+    public int ProbeEvery() => points.probeEvery;
     public long Steps() => LastNs() / DeltaNs();
     public int Frames() => (int)(Steps() / KeepEvery());
     // Three extra write intervals so the watcher, which holds back the newest three, still converts lastT.

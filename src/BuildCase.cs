@@ -74,7 +74,7 @@ public static class BuildCase
         Set("DAMPING_STRENGTH_MULTIPLIER",c.physics.damping.strengthMultiplier);Set("DAMPING_TARGET_FREQUENCY",c.physics.damping.targetFrequencyHz);
         v["DELTA_T"]=Points.Seconds(c.DeltaNs());
         v["END_TIME"]=Points.Seconds(c.EndNs());
-        Set("FAR_FIELD_RELAXATION_LENGTH",c.physics.farFieldRelaxationLengthMeters);Set("FIELD_WRITE_INTERVAL",c.KeepEvery());
+        Set("FAR_FIELD_RELAXATION_LENGTH",c.physics.farFieldRelaxationLengthMeters);Set("FIELD_WRITE_INTERVAL",c.KeepEvery());Set("PROBE_WRITE_INTERVAL",c.ProbeEvery());
         Set("INITIAL_PRESSURE",c.physics.ambientPressureHectopascals*100);
         Set("INITIAL_TEMPERATURE",c.physics.initialTemperatureCelsius+273.15);Set("INLET_VELOCITY",c.physics.inletVelocityMetersPerSecond);
         Set("PROCESSOR_COUNT",c.processorCount);

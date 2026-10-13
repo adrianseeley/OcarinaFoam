@@ -52,6 +52,7 @@ public static class Configuration
         if (delta <= 0) throw new Exception("deltaT must be positive.");
         if (c.points == null) throw new Exception("Config requires points.");
         Positive(c.KeepEvery(), "points.keepEvery");
+        Positive(c.ProbeEvery(), "points.probeEvery");
         if (last % delta != 0) throw new Exception($"lastT ({c.lastT}) is not a whole number of deltaT ({c.deltaT}) steps, so the solver would never land on it.");
         if (c.Steps() % c.KeepEvery() != 0) throw new Exception($"lastT is {c.Steps()} steps, not a multiple of points.keepEvery ({c.KeepEvery()}): the last frame would never be written.");
         if (c.EndNs() >= 999_000_000_000) throw new Exception("lastT plus three guard write intervals must stay below 999 s: point frame names hold three digits of seconds.");
@@ -83,7 +84,7 @@ public static class Configuration
         // Points controls are read live on restart; physics is frozen in foam/config.json.
         string text = JsonSerializer.Serialize(c, Json);
         using var document = JsonDocument.Parse(text);
-        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name is not ("watcher" or "points")).Select(x => x.ToString()).Append("keepEvery=" + c.points.keepEvery));
+        string physical = string.Join("\n", document.RootElement.EnumerateObject().Where(x => x.Name is not ("watcher" or "points")).Select(x => x.ToString()).Append("keepEvery=" + c.points.keepEvery).Append("probeEvery=" + c.points.probeEvery));
         return Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(physical)));
     }
     public static Config Built(string root)

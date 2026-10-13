@@ -53,7 +53,7 @@ public static class Supervisor
         if(Path.GetFileNameWithoutExtension(exe)=="dotnet")argv.Add(Assembly.GetExecutingAssembly().Location);
         argv.Add("_"+kind);argv.Add(root);
         return "[program:"+Name(root,kind)+"]\ncommand="+Escape(string.Join(' ',argv.Select(Quote)))+"\ndirectory="+Escape(root)+
-            "\nautostart=false\nautorestart=false\nstartsecs=0\nstartretries=0\nstopsignal=TERM\nstopwaitsecs=30\nstopasgroup=true\nkillasgroup=true\n"+
+            "\nautostart=false\nautorestart=unexpected\nstartsecs=5\nstartretries=3\nstopsignal=TERM\nstopwaitsecs=30\nstopasgroup=true\nkillasgroup=true\n"+
             "redirect_stderr=true\nstdout_logfile="+Escape(Path.Combine(Paths.Logs(root),kind+".log"))+"\nstdout_logfile_maxbytes=0\nstdout_logfile_backups=0\n"+
             "environment=FOAM_FILEHANDLER=\"uncollated\"\n";
     }
