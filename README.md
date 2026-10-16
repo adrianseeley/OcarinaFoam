@@ -151,10 +151,14 @@ are required so `&&`, `<`, and `>` are passed as one argument. Rendering still s
 selected original points; it does not load the STL, interpolate, or generate a plane.
 Use `inferno`, the olive-green `gameboy`, or the cool-neutral-warm diverging `vanimo` colour scheme.
 
-Use `*` for the time argument to render every saved frame. The renderer first scans every
-frame for the selected points' finite scalar minimum and maximum, then renders frames in
-timestamp order using that shared colour range. Quote the asterisk so the shell does not
-expand it: `ocarina render DIR pressure '*' fromTop inferno 10x0.5`.
+Every render first scans all saved frames available when the command starts for the
+selected points' finite scalar minimum and maximum. This observed colour range is used
+even when rendering a single timestamp, frame index, or latest frame. The range is per
+case and can grow as a running simulation saves more frames.
+
+Use `*` for the time argument to render every saved frame in timestamp order with that
+same colour range. Quote the asterisk so the shell does not expand it:
+`ocarina render DIR pressure '*' fromTop inferno 10x0.5`.
 
 On solver restart the CLI verifies latest-time agreement and mandatory fields on
 every rank. It restores the fixed sponge reference from each rank's initial state.

@@ -191,7 +191,8 @@ public static class Render
         double pixels = Size / scale;
 
         float min = float.PositiveInfinity, max = float.NegativeInfinity;
-        foreach (string frame in frames)
+        // Use the run's observed range even when only one frame is rendered.
+        foreach (string frame in availableFrames)
         {
             float[] values = ReadFrame(pointsDirectory, frame, stride, count);
             for (int i = 0; i < count; i++)
