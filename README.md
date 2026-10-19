@@ -141,24 +141,84 @@ the template guide.
 
 ## Rendering selected points
 
-`ocarina render DIR pressure -t fromTop inferno 10x0.5` renders the point cloud from a named
-orthographic view. The required `PIXELSxALPHA` presentation makes each point an alpha-blended
-circular sprite; `10x0.5` means a 10-pixel diameter at 50% opacity. Points are composited
-back to front. Append one quoted, space-free condition to select a region, for example
-`'y>=0&&x<5'`. A condition joins comparisons of the millimetre `x`, `y`, and `z` coordinates
-with `&&`; supported comparisons are `<`, `>`, `<=`, `>=`, `==`, and `!=`. The shell quotes
-are required so `&&`, `<`, and `>` are passed as one argument. Rendering still splats the
-selected original points; it does not load the STL, interpolate, or generate a plane.
-Use `inferno`, the olive-green `gameboy`, or the cool-neutral-warm diverging `vanimo` colour scheme.
+`ocarina render clean DIR` deletes only `DIR/renders`, including every data-mode subfolder.
+It succeeds when the folder is already absent and leaves simulation data, settings, and videos elsewhere untouched.
 
-Every render first scans all saved frames available when the command starts for the
-selected points' finite scalar minimum and maximum. This observed colour range is used
-even when rendering a single timestamp, frame index, or latest frame. The range is per
-case and can grow as a running simulation saves more frames.
+`ocarina render DIR renderSettings.json` renders a 2048×2048 point-cloud bitmap for each
+selected frame. The settings file path is relative to the current working directory,
+independently of the case directory. The root `renderSettings.json` is ready to use:
 
-Use `*` for the time argument to render every saved frame in timestamp order with that
-same colour range. Quote the asterisk so the shell does not expand it:
-`ocarina render DIR pressure '*' fromTop inferno 10x0.5`.
+```json
+{
+  "field": "pressure",
+  "frames": "*",
+  "view": "fromRight",
+  "color": "hsv",
+  "pointSize": 17,
+  "alpha": 1.0,
+  "dataMode": "standard",
+  "fadeUnchanged": true,
+  "unchangedAlpha": 0.15,
+  "filter": {
+    "x": { "greaterThanEqual": -1, "lessThanEqual": 1 }
+  }
+}
+```
+
+`field`, `frames`, `view`, `color`, `pointSize`, `alpha`, and `dataMode` are required.
+Unknown settings and comparison names are rejected. `filter` defaults to `{}` (all points),
+`fadeUnchanged` defaults to `true`, and `unchangedAlpha` defaults to `0`.
+
+- `frames`: `"*"` for every eligible saved frame, `"-t"` or `"-1"` for the latest,
+  a string containing a zero-based frame index (negative indices count from the end),
+  or a timestamp such as `"000s001ms000us000ns"`. Indices refer to original saved frames.
+- `view`: `fromLeft`, `fromRight`, `fromAbove`, `fromBelow`, `fromTop`, `fromBottom`,
+  or `fromAboveRight`.
+- `color`: `inferno` (dark purple through orange to pale yellow), `gameboy` (olive greens),
+  `vanimo` (diverging pink/purple through dark to green), or `hsv` (the full hue rainbow).
+  HSV has red at both ends, so opposite extremes share a colour.
+- `pointSize` is the positive integer diameter of each circular point in pixels;
+  `alpha` is its maximum opacity from 0 to 1. Points are composited back to front.
+- `filter` contains any of `x`, `y`, and `z`, in **millimetres**. Each axis accepts
+  `greaterThan`, `greaterThanEqual`, `lessThan`, `lessThanEqual`, `equal`, and `notEqual`.
+  All comparisons must match. For example, `"x": {"greaterThan": 6, "lessThanEqual": 10}`
+  selects `6 < x <= 10`. Rendering uses the selected original points without interpolation.
+
+`dataMode` controls the value used for colour, with `p[n]` denoting a point's pressure
+in the nth saved frame:
+
+| Mode | Value | History required |
+| --- | --- | --- |
+| `standard` | `p[n]` | None |
+| `firstDifferences` | `p[n] - p[n-1]` | One preceding frame |
+| `secondDifferences` | `p[n] - 2*p[n-1] + p[n-2]` | Two preceding frames |
+
+Differences are signed changes between consecutive **saved** frames, without division by
+the time interval; they are not time derivatives. With `frames: "*"`, frames without enough
+history are skipped. Selecting such a frame explicitly gives an error. Single-frame
+renders still read their preceding saved frames. Nonfinite values or history are skipped.
+
+Every render scans all eligible saved frames available at startup for the selected points'
+transformed range. Standard mode uses the observed minimum and maximum. Difference modes
+use a symmetric range around zero, so zero stays at the palette midpoint. This scale is
+shared by all rendered frames, including when selecting just one. It is per case and can
+grow as new frames arrive.
+
+`fadeUnchanged` works in **all three modes** without changing the colour values. In standard
+mode it measures `abs(p[n] - p[n-1])`; in difference modes it measures the absolute value
+of the displayed difference. Activity is normalized independently in each rendered frame by the maximum absolute
+activity among its selected, finite points. A larger change in another frame does not
+affect this frame's opacity; zero activity maps to the floor and this frame's largest
+activity maps to full configured alpha. Colour scaling still uses all saved frames. Opacity is
+`alpha * (unchangedAlpha + (1 - unchangedAlpha) * normalizedActivity)`.
+Thus `unchangedAlpha: 0` hides zero activity, while `0.15` keeps it faintly visible at 15%
+of the configured alpha. The first standard frame has no preceding history and uses the
+configured alpha. Setting `fadeUnchanged: false` gives every finite selected point the
+configured alpha, including points with zero change.
+
+Output is `DIR/renders/DATA_MODE/pressure_TIMESTAMP.bmp`, keeping standard and difference
+images separate. The render and video commands in `copy` currently use `standard`; if you
+change `dataMode`, update the video input folder to match.
 
 On solver restart the CLI verifies latest-time agreement and mandatory fields on
 every rank. It restores the fixed sponge reference from each rank's initial state.
@@ -167,7 +227,7 @@ retained files let you diagnose what failed before explicitly retrying.
 
 ## Source layout and verification
 
-One `ocarina.csproj` at the root, sources in `src/`, no application namespaces. Data types have public fields only.
+One `ocarina.csproj` at the root, sources in `src/`, no application namespaces. Simulation config data types use public fields; render settings use required JSON properties.
 The `.cs` files contain static operations; points functions are split into
 `Points.*.cs` files sharing one static class. `foamTemplate/` owns simulation policy.
 No legacy generators or generated case is shipped. Shell is used only for machine
@@ -175,6 +235,7 @@ provisioning and sourcing OpenFOAM's own environment before executing its tools.
 
 ```bash
 dotnet build -c Release --no-restore
+dotnet run --project tests/RenderChecks -c Release
 ```
 See [VALIDATION.md](VALIDATION.md) for the checks run on this revision and the remaining
 Ubuntu/OpenFOAM/watcher acceptance steps.

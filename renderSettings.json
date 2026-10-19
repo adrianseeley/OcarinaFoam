@@ -1,0 +1,17 @@
+{
+  "field": "pressure",
+  "frames": "*",
+  "view": "fromRight",
+  "color": "hsv",
+  "pointSize": 17,
+  "alpha": 1.0,
+  "dataMode": "standard",
+  "fadeUnchanged": true,
+  "unchangedAlpha": 0.15,
+  "filter": {
+    "x": {
+      "greaterThanEqual": -1,
+      "lessThanEqual": 1
+    }
+  }
+}

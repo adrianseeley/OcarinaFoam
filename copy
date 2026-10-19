@@ -23,17 +23,32 @@ ocarina clean ocarinaZeroSlimN
 ocarina clean ocarinaZeroSlimU
 
 
-ocarina render ocarinaZeroSlim pressure "*" fromRight inferno 10x0.5
-ocarina render ocarinaZeroSlimC pressure "*" fromRight inferno 10x0.5
-ocarina render ocarinaZeroSlimD pressure "*" fromRight inferno 10x0.5
-ocarina render ocarinaZeroSlimO pressure "*" fromRight inferno 10x0.5
-ocarina render ocarinaZeroSlimN pressure "*" fromRight inferno 10x0.5
-ocarina render ocarinaZeroSlimU pressure "*" fromRight inferno 10x0.5
+ocarina render clean ocarinaZeroSlim
+ocarina render clean ocarinaZeroSlimC
+ocarina render clean ocarinaZeroSlimD
+ocarina render clean ocarinaZeroSlimO
+ocarina render clean ocarinaZeroSlimN
+ocarina render clean ocarinaZeroSlimU
 
 
-ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlim/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlim-pressure.mp4 -y
-ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimC/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimC-pressure.mp4 -y
-ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimD/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimD-pressure.mp4 -y
-ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimO/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimO-pressure.mp4 -y
-ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimN/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimN-pressure.mp4 -y
-ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimU/renders/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimU-pressure.mp4 -y
+ocarina render ocarinaZeroSlim renderSettings.json
+ocarina render ocarinaZeroSlimC renderSettings.json
+ocarina render ocarinaZeroSlimD renderSettings.json
+ocarina render ocarinaZeroSlimO renderSettings.json
+ocarina render ocarinaZeroSlimN renderSettings.json
+ocarina render ocarinaZeroSlimU renderSettings.json
+
+
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlim/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlim-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimC/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimC-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimD/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimD-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimO/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimO-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimN/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimN-pressure.mp4 -y
+ffmpeg -framerate 10 -pattern_type glob -i 'ocarinaZeroSlimU/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimU-pressure.mp4 -y
+
+ffmpeg -framerate 60 -pattern_type glob -i 'ocarinaZeroSlim/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlim-pressure.mp4 -y
+ffmpeg -framerate 60 -pattern_type glob -i 'ocarinaZeroSlimC/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimC-pressure.mp4 -y
+ffmpeg -framerate 60 -pattern_type glob -i 'ocarinaZeroSlimD/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimD-pressure.mp4 -y
+ffmpeg -framerate 60 -pattern_type glob -i 'ocarinaZeroSlimO/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimO-pressure.mp4 -y
+ffmpeg -framerate 60 -pattern_type glob -i 'ocarinaZeroSlimN/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimN-pressure.mp4 -y
+ffmpeg -framerate 60 -pattern_type glob -i 'ocarinaZeroSlimU/renders/standard/pressure_*.bmp' -c:v libx264 -crf 18 -pix_fmt yuv420p -movflags +faststart ocarinaZeroSlimU-pressure.mp4 -y
