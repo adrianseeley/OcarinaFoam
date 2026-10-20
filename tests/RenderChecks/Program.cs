@@ -103,7 +103,7 @@ try
     Check(FooterPixel(16, footer + 80) == (255, 0, 0), "pressure palette begins at legend inset");
     Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, 12) == (255,255,255)), "summary appears above plot");
     Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, 56) == (240,90,90)), "disabled mute labels are red");
-    int timeY = footer + 240;
+    int timeY = footer + 346;
     foreach (var tripletColor in new[] { (255,195,80), (80,205,255), (205,145,255), (255,135,165) })
         Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, timeY) == ((byte)tripletColor.Item1, (byte)tripletColor.Item2, (byte)tripletColor.Item3)),
             "timestamp triplet has its own color");
@@ -145,7 +145,7 @@ try
 
     byte[] rankPlot = new byte[Render.Size * Render.ImageHeight * 3];
     typeof(Render).GetMethod("DrawLegend", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null,
-        new object[] { rankPlot, "hsv", 0.0, 1_000_000.0, ranked, all, new[] { "TEST", "NO FILTER - 100 POINTS REMAIN", "100 POINTS REMAIN" },
+        new object[] { rankPlot, "hsv", 0.0, 1_000_000.0, ranked, all, new[] { "TEST", "NO FILTER", "100 POINTS", "100 POINTS", "100 POINTS" },
             Bands(ranked, all, null), ranked, Bands(ranked, all, null, 0.05),
             new Render.Settings { field="pressure", frames="*", view="fromRight", color="hsv", pointSize=20, alpha=0.5, dataMode="standard" }, frames[1], frames[2], 0.5 });
     (byte R, byte G, byte B) RankPixel(int x, int y)
@@ -153,7 +153,7 @@ try
         int p = (y * Render.Size + x) * 3;
         return (rankPlot[p + 2], rankPlot[p + 1], rankPlot[p]);
     }
-    int deltaTop = Render.HeaderHeight + Render.Size + 112;
+    int deltaTop = Render.HeaderHeight + Render.Size + 136;
     Check(RankPixel(30, deltaTop + 70) == (80,220,120)
         && RankPixel(100, deltaTop + 70) == (55,55,55),
         "delta mute shading follows rank despite an extreme outlier");
