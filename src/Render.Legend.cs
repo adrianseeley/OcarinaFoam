@@ -89,8 +89,15 @@ public static partial class Render
         timeParts.Clear();
         Stamp(finalFrame);
         CenterParts(image, timeParts, timeTop + 82, 2, Size - LegendLeft - stampWidth, stampWidth);
-        CenterText(image, "OF", timeTop + 82, 2);
-        CenterText(image, "TIME", timeTop + 104, 2);
+        int arrowY = timeTop + 88, arrowTip = Size / 2 + 14;
+        for (int x = Size / 2 - 14; x <= arrowTip; x++)
+            for (int dy = 0; dy < 2; dy++) LegendPixel(image, x, arrowY + dy, 255, 255, 255);
+        for (int step = 0; step <= 7; step++)
+            for (int dy = 0; dy < 2; dy++)
+            {
+                LegendPixel(image, arrowTip - step, arrowY - step + dy, 255, 255, 255);
+                LegendPixel(image, arrowTip - step, arrowY + step + dy, 255, 255, 255);
+            }
     }
 
     static void DrawDistribution(byte[] image, string color, double min, double max, double[] values, bool[] selected,
