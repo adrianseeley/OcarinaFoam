@@ -100,15 +100,15 @@ try
         return (legendBitmap[p + 2], legendBitmap[p + 1], legendBitmap[p]);
     }
     int footer = Render.HeaderHeight + Render.Size;
-    Check(FooterPixel(16, footer + 80) == (255, 0, 0), "pressure palette begins at legend inset");
+    Check(FooterPixel(32, footer + Render.SectionPadding + 72) == (255, 0, 0), "pressure palette begins at legend inset");
     Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, 12) == (255,255,255)), "summary appears above plot");
     Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, 56) == (240,90,90)), "disabled mute labels are red");
     for (int section = 0; section < 3; section++)
-        Check(FooterPixel(8, footer + section * 128) == (255,255,255)
-            && FooterPixel(Render.Size - 9, footer + section * 128 + 126) == (255,255,255),
+        Check(FooterPixel(8, footer + section * Render.SectionHeight) == (255,255,255)
+            && FooterPixel(Render.Size - 9, footer + section * Render.SectionHeight + Render.SectionHeight - 2) == (255,255,255),
             "footer section has white outline");
-    Check(FooterPixel(15, footer + 76) == (255,255,255), "color bar has white outline");
-    int timeY = footer + 346;
+    Check(FooterPixel(31, footer + Render.SectionPadding + 68) == (255,255,255), "color bar has white outline");
+    int timeY = footer + Render.SectionHeight * 2 + Render.SectionPadding + 82;
     foreach (var tripletColor in new[] { (255,195,80), (80,205,255), (205,145,255), (255,135,165) })
         Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, timeY) == ((byte)tripletColor.Item1, (byte)tripletColor.Item2, (byte)tripletColor.Item3)),
             "timestamp triplet has its own color");
@@ -126,7 +126,7 @@ try
     Check(Pixel(Output("standard", 0), 0) == (255, 0, 0), "low extreme remains visible");
     Check(Pixel(Output("standard", 1), 1) == (0, 0, 0), "central values are completely hidden");
     Check(Pixel(Output("standard", 2), 4) == (0, 0, 0), "x filter excludes outliers");
-    Check(Enumerable.Range(16, Render.Size - 32).Any(x => FooterPixel(x, footer + 80) == (80,220,120)), "active mute interval is green on pressure legend");
+    Check(Enumerable.Range(16, Render.Size - 32).Any(x => FooterPixel(x, footer + Render.SectionPadding + 72) == (80,220,120)), "active mute interval is green on pressure legend");
     MethodInfo rankBands = typeof(Render).GetMethod("RankBands", BindingFlags.Static | BindingFlags.NonPublic)!;
     (bool[] Hidden, (double Low, double High)[] Bands, (double Low, double High)[] Ranks, int Count)
         Bands(double[] values, bool[] selected, double? middle, double? low = null, double? high = null) =>
@@ -158,11 +158,11 @@ try
         int p = (y * Render.Size + x) * 3;
         return (rankPlot[p + 2], rankPlot[p + 1], rankPlot[p]);
     }
-    int deltaTop = Render.HeaderHeight + Render.Size + 136;
-    Check(RankPixel(30, deltaTop + 40) == (18,60,30)
+    int deltaTop = Render.HeaderHeight + Render.Size + Render.SectionHeight + Render.SectionPadding;
+    Check(RankPixel(40, deltaTop + 40) == (18,60,30)
         && RankPixel(100, deltaTop + 40) == (0,0,0),
         "delta mute shading follows rank despite an extreme outlier");
-    Check(RankPixel(Render.Size - 17, deltaTop) == (255,255,255), "delta curve reaches maximum in white");
+    Check(RankPixel(Render.Size - 33, deltaTop) == (255,255,255), "delta curve reaches maximum in white");
     settings["removeRankBandMiddle"] = null;
     settings["alpha"] = 0.5;
     settings["frames"] = "-t";
@@ -190,8 +190,8 @@ try
         int p = 54 + ((deltaHeight - 1 - y) * Render.Size + x) * 3;
         return (deltaBitmap[p + 2], deltaBitmap[p + 1], deltaBitmap[p]);
     }
-    Check(DeltaPixel(Render.Size - 17, deltaTop) == (255,255,255), "white delta curve includes all selected finite changes");
-    Check(DeltaPixel(16 + (Render.Size - 32)/2, deltaTop + 40) == (80,220,120), "lowest half of delta ranks has its cutoff at half the legend width");
+    Check(DeltaPixel(Render.Size - 33, deltaTop) == (255,255,255), "white delta curve includes all selected finite changes");
+    Check(DeltaPixel(32 + (Render.Size - 64)/2, deltaTop + 40) == (80,220,120), "lowest half of delta ranks has its cutoff at half the legend width");
     Check(DeltaPixel(800, deltaTop + 70) == (0,0,0), "delta curve has no bar beneath it");
     settings["removeRankBandHigh"] = 0.5;
     Run();

@@ -3,10 +3,12 @@ using System.Globalization;
 public static partial class Render
 {
     public const int HeaderHeight = 100;
-    public const int LegendHeight = 384;
+    public const int SectionHeight = 152;
+    public const int SectionPadding = 16;
+    public const int LegendHeight = SectionHeight * 3;
     public const int ImageHeight = HeaderHeight + Size + LegendHeight;
-    const int LegendWidth = Size - 32;
-    const int LegendLeft = 16;
+    const int LegendWidth = Size - 64;
+    const int LegendLeft = 32;
     const int HistogramHeight = 64;
     static readonly (byte R, byte G, byte B) MuteGreen = (80, 220, 120);
     static readonly (byte R, byte G, byte B) OffRed = (240, 90, 90);
@@ -47,24 +49,24 @@ public static partial class Render
         HeaderRow(image, metadata[1], metadata[3], 34, contentWidth);
         void MuteRow(string title, double? low, double? middle, double? high, string count, int y)
         {
-            var parts = new List<(string Text, (byte R, byte G, byte B) Color)> { (title + "  ", white) };
+            var parts = new List<(string Text, (byte R, byte G, byte B) Color)> { (title.PadRight(10) + "  ", white) };
             void Band(string label, double? value)
             {
                 parts.Add((label, white));
-                parts.Add((value > 0 ? value.Value.ToString("G4", CultureInfo.InvariantCulture) : "OFF", value > 0 ? MuteGreen : OffRed));
+                parts.Add((value.HasValue ? value.Value.ToString("F2", CultureInfo.InvariantCulture) : "OFF ", value.HasValue ? MuteGreen : OffRed));
             }
             Band("LOW ", low); Band("  MID ", middle); Band("  HIGH ", high);
-            CenterParts(image, parts, y, 2, LegendLeft, contentWidth);
+            CenterParts(image, parts, y, 2, LegendLeft, contentWidth, alignLeft: true);
             if (count.Length > 0) LegendText(image, count, Size - LegendLeft - TextWidth(count), y);
         }
         MuteRow("RANK MUTE", settings.removeRankBandLow, settings.removeRankBandMiddle, settings.removeRankBandHigh, metadata[5], 56);
         MuteRow("DELTA MUTE", settings.removeDeltaRankBandLow, settings.removeDeltaRankBandMiddle, settings.removeDeltaRankBandHigh, metadata[4], 78);
-        DrawDistribution(image, color, min, max, values, selected, bands, HeaderHeight + Size + 8, false, settings);
+        DrawDistribution(image, color, min, max, values, selected, bands, HeaderHeight + Size + SectionPadding, false, settings);
         double[] finite = activity == null ? Array.Empty<double>() : activity.Where((v, i) => selected[i] && double.IsFinite(v)).ToArray();
         DrawDistribution(image, color, finite.Length > 0 ? finite.Min() : 0, finite.Length > 0 ? finite.Max() : 0,
-            activity ?? new double[values.Length], selected, deltaBands, HeaderHeight + Size + 136, true, settings);
-        if (activity == null) LegendText(image, "NO PRECEDING FRAME", LegendLeft, HeaderHeight + Size + 140, 1);
-        int timeTop = HeaderHeight + Size + 264;
+            activity ?? new double[values.Length], selected, deltaBands, HeaderHeight + Size + SectionHeight + SectionPadding, true, settings);
+        if (activity == null) LegendText(image, "NO PRECEDING FRAME", LegendLeft, HeaderHeight + Size + SectionHeight + SectionPadding + 4, 1);
+        int timeTop = HeaderHeight + Size + SectionHeight * 2 + SectionPadding;
         for (int xx = 0; xx < LegendWidth; xx++)
             for (int y = timeTop + 32; y < timeTop + 48; y++)
             {
@@ -100,7 +102,7 @@ public static partial class Render
             }
         int footerTop = HeaderHeight + Size;
         for (int section = 0; section < 3; section++)
-            WhiteBorder(image, 8, footerTop + section * 128, Size - 16, 127);
+            WhiteBorder(image, 8, footerTop + section * SectionHeight, Size - 16, SectionHeight - 1);
     }
 
     static void WhiteBorder(byte[] image, int left, int top, int width, int height)
@@ -239,19 +241,19 @@ public static partial class Render
 
     static void HeaderRow(byte[] image, string text, string count, int y, int contentWidth)
     {
-        CenterParts(image, new[] { (text, ((byte)255, (byte)255, (byte)255)) }, y, 2, LegendLeft, contentWidth);
+        CenterParts(image, new[] { (text, ((byte)255, (byte)255, (byte)255)) }, y, 2, LegendLeft, contentWidth, alignLeft: true);
         LegendText(image, count, Size - LegendLeft - TextWidth(count), y);
     }
 
     static void CenterText(byte[] image, string text, int y, int scale) =>
         CenterParts(image, new[] { (text, ((byte)255, (byte)255, (byte)255)) }, y, scale);
 
-    static void CenterParts(byte[] image, IEnumerable<(string Text, (byte R, byte G, byte B) Color)> parts, int y, int scale, int left = LegendLeft, int availableWidth = LegendWidth)
+    static void CenterParts(byte[] image, IEnumerable<(string Text, (byte R, byte G, byte B) Color)> parts, int y, int scale, int left = LegendLeft, int availableWidth = LegendWidth, bool alignLeft = false)
     {
         var segments = parts.ToArray();
         int width = (segments.Sum(p => p.Text.Length) * 6 - 1) * scale;
         double factor = Math.Min(1, availableWidth / (double)Math.Max(1, width));
-        double x = left + (availableWidth - width * factor) / 2;
+        double x = alignLeft ? left : left + (availableWidth - width * factor) / 2;
         foreach (var part in segments)
         foreach (char c in part.Text)
         {
