@@ -2,7 +2,7 @@ using System.Globalization;
 
 public static partial class Render
 {
-    public const int HeaderHeight = 72;
+    public const int HeaderHeight = 84;
     public const int LegendHeight = 264;
     public const int ImageHeight = HeaderHeight + Size + LegendHeight;
     const int LegendWidth = Size - 32;
@@ -28,7 +28,11 @@ public static partial class Render
     {
         string filter = conditions.Length == 0 ? "NO FILTER" : string.Join(" && ", conditions.Select(c =>
             $"{ "XYZ"[c.Axis]} {c.Operator} {c.Value.ToString("G4", CultureInfo.InvariantCulture)}")) + " MM";
-        return new[] { $"{Path.GetFileName(root)} - {settings.field} - {settings.dataMode} - {settings.view} - {filter} - {total} TOTAL - {selected} AFTER FILTER - {shown} AFTER MUTE - {settings.color} - {settings.pointSize} PX @ {settings.alpha.ToString("G4", CultureInfo.InvariantCulture)} ALPHA" };
+        return new[] {
+            $"{Path.GetFileName(root)}  {settings.field}  {settings.dataMode}  {settings.view}  {settings.color}  {settings.pointSize} PX @ {settings.alpha.ToString("G4", CultureInfo.InvariantCulture)} ALPHA  {total} POINTS",
+            $"{filter}  -  {selected} POINTS REMAIN",
+            $"{shown} POINTS REMAIN"
+        };
     }
 
     static void DrawLegend(byte[] image, string color, double min, double max, double[] values, bool[] selected,
@@ -37,8 +41,8 @@ public static partial class Render
         (bool[] Hidden, (double Low, double High)[] Bands, (double Low, double High)[] Ranks, int Count) deltaBands,
         Settings settings, string frame, string finalFrame, double progress)
     {
-        // Fit the requested summary onto one centered line; normal names fit at 1x.
-        CenterText(image, metadata[0], 12, 1);
+        CenterText(image, metadata[0], 12, 2);
+        CenterText(image, metadata[1], 34, 2);
         var parts = new List<(string Text, (byte R, byte G, byte B) Color)>();
         var white = ((byte)255, (byte)255, (byte)255);
         void Text(string text) => parts.Add((text, white));
@@ -47,17 +51,12 @@ public static partial class Render
             Text(label);
             parts.Add((value > 0 ? value.Value.ToString("G4", CultureInfo.InvariantCulture) : "OFF", value > 0 ? MuteGreen : OffRed));
         }
-        Text("RANK MUTE: ");
-        Band("LOW ", settings.removeRankBandLow); Band("  MID ", settings.removeRankBandMiddle); Band("  HIGH ", settings.removeRankBandHigh);
-        Text("  -  DELTA MUTE: ");
-        Band("LOW ", settings.removeDeltaRankBandLow); Band("  MID ", settings.removeDeltaRankBandMiddle); Band("  HIGH ", settings.removeDeltaRankBandHigh);
-        int scale = parts.Sum(p => p.Text.Length) * 12 <= Size - 32 ? 2 : 1;
-        int x = (Size - parts.Sum(p => p.Text.Length) * 6 * scale + scale) / 2;
-        foreach (var part in parts)
-        {
-            LegendText(image, part.Text, x, 38, scale, part.Color);
-            x += part.Text.Length * 6 * scale;
-        }
+        Text("RANK: ");
+        Band("L ", settings.removeRankBandLow); Band("  M ", settings.removeRankBandMiddle); Band("  H ", settings.removeRankBandHigh);
+        Text("  |  DELTA: ");
+        Band("L ", settings.removeDeltaRankBandLow); Band("  M ", settings.removeDeltaRankBandMiddle); Band("  H ", settings.removeDeltaRankBandHigh);
+        Text("  -  " + metadata[2]);
+        CenterParts(image, parts, 56, 2);
         DrawDistribution(image, color, min, max, values, selected, bands, HeaderHeight + Size + 8, false);
         double[] finite = activity == null ? Array.Empty<double>() : activity.Where((v, i) => selected[i] && double.IsFinite(v)).ToArray();
         DrawDistribution(image, color, finite.Length > 0 ? finite.Min() : 0, finite.Length > 0 ? finite.Max() : 0,
@@ -70,8 +69,22 @@ public static partial class Render
                 byte v = xx < Math.Round(Math.Clamp(progress, 0, 1) * LegendWidth) ? (byte)230 : (byte)55;
                 LegendPixel(image, LegendLeft + xx, y, v, v, v);
             }
-        string Label(string stamp) => $"{stamp.Substring(0,3)} s {stamp.Substring(4,3)} ms {stamp.Substring(9,3)} us {stamp.Substring(14,3)} ns";
-        CenterText(image, Label(frame) + " OF " + Label(finalFrame), timeTop + 14, 2);
+        var timeParts = new List<(string Text, (byte R, byte G, byte B) Color)>();
+        void Stamp(string stamp)
+        {
+            timeParts.Add((stamp.Substring(0, 3), (255, 195, 80)));
+            timeParts.Add((" s ", white));
+            timeParts.Add((stamp.Substring(4, 3), (80, 205, 255)));
+            timeParts.Add((" ms ", white));
+            timeParts.Add((stamp.Substring(9, 3), (205, 145, 255)));
+            timeParts.Add((" us ", white));
+            timeParts.Add((stamp.Substring(14, 3), (255, 135, 165)));
+            timeParts.Add((" ns", white));
+        }
+        Stamp(frame);
+        timeParts.Add(("  OF  ", white));
+        Stamp(finalFrame);
+        CenterParts(image, timeParts, timeTop + 14, 2);
     }
 
     static void DrawDistribution(byte[] image, string color, double min, double max, double[] values, bool[] selected,
@@ -180,20 +193,24 @@ public static partial class Render
         ['?'] = new[] { "01110", "10001", "00001", "00010", "00100", "00000", "00100" },
         [','] = new[] { "00000", "00000", "00000", "00000", "00100", "00100", "01000" },
         ['P'] = new[] { "11110", "10001", "10001", "11110", "10000", "10000", "10000" },
+        ['|'] = new[] { "00100", "00100", "00100", "00100", "00100", "00100", "00100" },
         ['@'] = new[] { "01110", "10001", "10111", "10101", "10111", "10000", "01111" },
         ['A'] = new[] { "01110", "10001", "10001", "11111", "10001", "10001", "10001" }
     };
     const int TextScale = 2;
     static int TextWidth(string text, int scale = TextScale) => (text.Length * 6 - 1) * scale;
 
-    static void CenterText(byte[] image, string text, int y, int scale)
+    static void CenterText(byte[] image, string text, int y, int scale) =>
+        CenterParts(image, new[] { (text, ((byte)255, (byte)255, (byte)255)) }, y, scale);
+
+    static void CenterParts(byte[] image, IEnumerable<(string Text, (byte R, byte G, byte B) Color)> parts, int y, int scale)
     {
-        // Long custom names/filters shrink horizontally rather than clipping.
-        int width = TextWidth(text, scale);
-        if (width <= Size - 24) { LegendText(image, text, (Size - width) / 2, y, scale); return; }
-        double factor = (Size - 24.0) / width;
-        double x = 12;
-        foreach (char c in text)
+        var segments = parts.ToArray();
+        int width = (segments.Sum(p => p.Text.Length) * 6 - 1) * scale;
+        double factor = Math.Min(1, (Size - 32.0) / Math.Max(1, width));
+        double x = (Size - width * factor) / 2;
+        foreach (var part in segments)
+        foreach (char c in part.Text)
         {
             string[] glyph = LegendGlyphs.GetValueOrDefault(char.ToUpperInvariant(c), LegendGlyphs['?']);
             for (int row = 0; row < 7; row++)
@@ -201,7 +218,7 @@ public static partial class Render
                 if (glyph[row][col] == '1')
                     for (int dy = 0; dy < scale; dy++)
                     for (int xx = (int)(x + col * scale * factor); xx < (int)Math.Ceiling(x + (col + 1) * scale * factor); xx++)
-                        LegendPixel(image, xx, y + row * scale + dy, 255, 255, 255);
+                        LegendPixel(image, xx, y + row * scale + dy, part.Color.R, part.Color.G, part.Color.B);
             x += 6 * scale * factor;
         }
     }

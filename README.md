@@ -247,11 +247,13 @@ from these calculations entirely.
 
 The old `centerBandPercent` setting has been replaced by these fraction controls.
 
-Each lossless PNG panel is 1024×1360: a 72-pixel header, 1024×1024 plot, and 264-pixel footer.
-The centered header shows case, field, mode, view, filter, total/after-filter/after-mute
-counts, palette, point size and alpha. Mute settings use red OFF labels and green enabled
-fractions. The footer contains the pressure histogram/palette, white DELTA RANK curve
-(0.00–1.00), and frame progress with current time OF the latest saved time. Green
+Each lossless PNG panel is 1024×1372: an 84-pixel header, 1024×1024 plot, and 264-pixel footer.
+The centered three-line header shows case/field/mode/view/palette/presentation and total
+points, then filter and remaining points, then compact RANK and DELTA L/M/H mute
+settings with the final remaining count. OFF labels are red and enabled fractions green.
+The footer contains the pressure histogram/palette, white DELTA RANK curve
+(0.00–1.00), and frame progress with current time OF the latest saved time. Timestamp triplets use gold (seconds), cyan (milliseconds),
+purple (microseconds), and pink (nanoseconds), with white units. Green
 legend intervals and MUTE ACTIVE identify muted values/ranks. All panels share a saved-frame
 snapshot taken when rendering starts, so running simulations do not change the time endpoint.
 Its colour bar uses the same fixed range as the points, with low/high labels in Pa

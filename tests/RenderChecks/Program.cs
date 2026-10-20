@@ -102,7 +102,12 @@ try
     int footer = Render.HeaderHeight + Render.Size;
     Check(FooterPixel(16, footer + 80) == (255, 0, 0), "pressure palette begins at legend inset");
     Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, 12) == (255,255,255)), "summary appears above plot");
-    Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, 38) == (240,90,90)), "disabled mute labels are red");
+    Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, 56) == (240,90,90)), "disabled mute labels are red");
+    int timeY = footer + 240;
+    foreach (var tripletColor in new[] { (255,195,80), (80,205,255), (205,145,255), (255,135,165) })
+        Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, timeY) == ((byte)tripletColor.Item1, (byte)tripletColor.Item2, (byte)tripletColor.Item3)),
+            "timestamp triplet has its own color");
+    Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, timeY) == (255,255,255)), "timestamp units stay white");
     MethodInfo histogram = typeof(Render).GetMethod("Histogram", BindingFlags.Static | BindingFlags.NonPublic)!;
     int[] Histogram(double[] values, bool[] selected, double min, double max) =>
         (int[])histogram.Invoke(null, new object[] { values, selected, min, max })!;
@@ -140,7 +145,7 @@ try
 
     byte[] rankPlot = new byte[Render.Size * Render.ImageHeight * 3];
     typeof(Render).GetMethod("DrawLegend", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null,
-        new object[] { rankPlot, "hsv", 0.0, 1_000_000.0, ranked, all, new[] { "TEST" },
+        new object[] { rankPlot, "hsv", 0.0, 1_000_000.0, ranked, all, new[] { "TEST", "NO FILTER - 100 POINTS REMAIN", "100 POINTS REMAIN" },
             Bands(ranked, all, null), ranked, Bands(ranked, all, null, 0.05),
             new Render.Settings { field="pressure", frames="*", view="fromRight", color="hsv", pointSize=20, alpha=0.5, dataMode="standard" }, frames[1], frames[2], 0.5 });
     (byte R, byte G, byte B) RankPixel(int x, int y)
