@@ -5,7 +5,8 @@ public static partial class Render
     public const int HeaderHeight = 100;
     public const int SectionHeight = 152;
     public const int SectionPadding = 16;
-    public const int LegendHeight = SectionHeight * 3;
+    public const int SectionGap = 8;
+    public const int LegendHeight = SectionHeight * 3 + SectionGap * 2;
     public const int ImageHeight = HeaderHeight + Size + LegendHeight;
     const int LegendWidth = Size - 64;
     const int LegendLeft = 32;
@@ -64,9 +65,9 @@ public static partial class Render
         DrawDistribution(image, color, min, max, values, selected, bands, HeaderHeight + Size + SectionPadding, false, settings);
         double[] finite = activity == null ? Array.Empty<double>() : activity.Where((v, i) => selected[i] && double.IsFinite(v)).ToArray();
         DrawDistribution(image, color, finite.Length > 0 ? finite.Min() : 0, finite.Length > 0 ? finite.Max() : 0,
-            activity ?? new double[values.Length], selected, deltaBands, HeaderHeight + Size + SectionHeight + SectionPadding, true, settings);
-        if (activity == null) LegendText(image, "NO PRECEDING FRAME", LegendLeft, HeaderHeight + Size + SectionHeight + SectionPadding + 4, 1);
-        int timeTop = HeaderHeight + Size + SectionHeight * 2 + SectionPadding;
+            activity ?? new double[values.Length], selected, deltaBands, HeaderHeight + Size + SectionHeight + SectionGap + SectionPadding, true, settings);
+        if (activity == null) LegendText(image, "NO PRECEDING FRAME", LegendLeft, HeaderHeight + Size + SectionHeight + SectionGap + SectionPadding + 4, 1);
+        int timeTop = HeaderHeight + Size + (SectionHeight + SectionGap) * 2 + SectionPadding;
         for (int xx = 0; xx < LegendWidth; xx++)
             for (int y = timeTop + 32; y < timeTop + 48; y++)
             {
@@ -102,7 +103,7 @@ public static partial class Render
             }
         int footerTop = HeaderHeight + Size;
         for (int section = 0; section < 3; section++)
-            WhiteBorder(image, 8, footerTop + section * SectionHeight, Size - 16, SectionHeight - 1);
+            WhiteBorder(image, 8, footerTop + section * (SectionHeight + SectionGap), Size - 16, SectionHeight - 1);
     }
 
     static void WhiteBorder(byte[] image, int left, int top, int width, int height)

@@ -12,7 +12,7 @@ public static class Program
         {
             if (args.Length == 0 || args[0] is "help" or "--help" or "-h")
             {
-                Console.WriteLine("ocarina DIR        build if needed, then start the solver and watcher and monitor them (Ctrl+C leaves them running)\nocarina all         start every case below the current directory in detached workers\nocarina stop DIR   stop the solver and watcher; use 'all' for every case below the current directory\nocarina clean DIR  stop, then delete everything generated; use 'all' for every case below the current directory\nocarina render DIR SETTINGS_FILE  render using JSON settings; output: DIR/renders/DATA_MODE/FIELD_T.png (1024x1580 per panel, arrays arranged horizontally); see renderSettings.json and README.md\nocarina render clean DIR  delete only DIR/renders, including all data modes");
+                Console.WriteLine("ocarina DIR        build if needed, then start the solver and watcher and monitor them (Ctrl+C leaves them running)\nocarina all         start every case below the current directory in detached workers\nocarina stop DIR   stop the solver and watcher; use 'all' for every case below the current directory\nocarina clean DIR  stop, then delete everything generated; use 'all' for every case below the current directory\nocarina render DIR SETTINGS_FILE  render using JSON settings; output: DIR/renders/DATA_MODE/FIELD_T.png (1024x1596 per panel, arrays arranged horizontally); see renderSettings.json and README.md\nocarina render clean DIR  delete only DIR/renders, including all data modes");
                 return 0;
             }
             if (args.Length == 1 && args[0] == "all")
