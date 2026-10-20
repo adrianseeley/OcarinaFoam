@@ -145,7 +145,7 @@ try
 
     byte[] rankPlot = new byte[Render.Size * Render.ImageHeight * 3];
     typeof(Render).GetMethod("DrawLegend", BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(null,
-        new object[] { rankPlot, "hsv", 0.0, 1_000_000.0, ranked, all, new[] { "TEST", "NO FILTER", "100 POINTS", "100 POINTS", "100 POINTS" },
+        new object[] { rankPlot, "hsv", 0.0, 1_000_000.0, ranked, all, new[] { "TEST", "NO FILTER", "100 POINTS", "100 POINTS", "100 POINTS", "100 POINTS" },
             Bands(ranked, all, null), ranked, Bands(ranked, all, null, 0.05),
             new Render.Settings { field="pressure", frames="*", view="fromRight", color="hsv", pointSize=20, alpha=0.5, dataMode="standard" }, frames[1], frames[2], 0.5 });
     (byte R, byte G, byte B) RankPixel(int x, int y)

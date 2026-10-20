@@ -420,7 +420,9 @@ public static partial class Render
                 return presentation.Alpha;
             }
             int shown = Enumerable.Range(0, count).Count(i => PointAlpha(i) > 0);
-            string[] metadata = Metadata(root, frame, settings, conditions, shown, selectedCount, count);
+            int afterRank = Enumerable.Range(0, count).Count(i =>
+                selected[i] && double.IsFinite(values[i]) && !bands.Hidden[i] && presentation.Alpha > 0);
+            string[] metadata = Metadata(root, frame, settings, conditions, shown, selectedCount, count, afterRank);
             int imageHeight = ImageHeight;
             byte[] image = new byte[Size * imageHeight * 3];
             foreach (int i in order)

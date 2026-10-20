@@ -24,13 +24,13 @@ public static partial class Render
         return bins;
     }
 
-    static string[] Metadata(string root, string frame, Settings settings, Condition[] conditions, int shown, int selected, int total)
+    static string[] Metadata(string root, string frame, Settings settings, Condition[] conditions, int shown, int selected, int total, int afterRank)
     {
         string filter = conditions.Length == 0 ? "NO FILTER" : string.Join(" && ", conditions.Select(c =>
             $"{ "XYZ"[c.Axis]} {c.Operator} {c.Value.ToString("G4", CultureInfo.InvariantCulture)}")) + " MM";
         return new[] {
             $"{Path.GetFileName(root)}  {settings.field}  {settings.dataMode}  {settings.view}",
-            filter, $"{total} POINTS", $"{selected} POINTS", $"{shown} POINTS"
+            filter, $"{total} POINTS", $"{selected} POINTS", $"{shown} POINTS", $"{afterRank} POINTS"
         };
     }
 
@@ -41,7 +41,7 @@ public static partial class Render
         Settings settings, string frame, string finalFrame, double progress)
     {
         var white = ((byte)255, (byte)255, (byte)255);
-        int countWidth = Math.Max(TextWidth(metadata[2]), Math.Max(TextWidth(metadata[3]), TextWidth(metadata[4])));
+        int countWidth = metadata.Skip(2).Max(text => TextWidth(text));
         int contentWidth = Size - countWidth - 64;
         HeaderRow(image, metadata[0], metadata[2], 12, contentWidth);
         HeaderRow(image, metadata[1], metadata[3], 34, contentWidth);
@@ -57,7 +57,7 @@ public static partial class Render
             CenterParts(image, parts, y, 2, LegendLeft, contentWidth);
             if (count.Length > 0) LegendText(image, count, Size - LegendLeft - TextWidth(count), y);
         }
-        MuteRow("RANK MUTE", settings.removeRankBandLow, settings.removeRankBandMiddle, settings.removeRankBandHigh, "", 56);
+        MuteRow("RANK MUTE", settings.removeRankBandLow, settings.removeRankBandMiddle, settings.removeRankBandHigh, metadata[5], 56);
         MuteRow("DELTA MUTE", settings.removeDeltaRankBandLow, settings.removeDeltaRankBandMiddle, settings.removeDeltaRankBandHigh, metadata[4], 78);
         DrawDistribution(image, color, min, max, values, selected, bands, HeaderHeight + Size + 8, false, settings);
         double[] finite = activity == null ? Array.Empty<double>() : activity.Where((v, i) => selected[i] && double.IsFinite(v)).ToArray();
