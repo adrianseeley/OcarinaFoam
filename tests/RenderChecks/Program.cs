@@ -103,6 +103,11 @@ try
     Check(FooterPixel(16, footer + 80) == (255, 0, 0), "pressure palette begins at legend inset");
     Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, 12) == (255,255,255)), "summary appears above plot");
     Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, 56) == (240,90,90)), "disabled mute labels are red");
+    for (int section = 0; section < 3; section++)
+        Check(FooterPixel(8, footer + section * 128) == (255,255,255)
+            && FooterPixel(Render.Size - 9, footer + section * 128 + 126) == (255,255,255),
+            "footer section has white outline");
+    Check(FooterPixel(15, footer + 76) == (255,255,255), "color bar has white outline");
     int timeY = footer + 346;
     foreach (var tripletColor in new[] { (255,195,80), (80,205,255), (205,145,255), (255,135,165) })
         Check(Enumerable.Range(0, Render.Size).Any(x => FooterPixel(x, timeY) == ((byte)tripletColor.Item1, (byte)tripletColor.Item2, (byte)tripletColor.Item3)),
@@ -154,8 +159,8 @@ try
         return (rankPlot[p + 2], rankPlot[p + 1], rankPlot[p]);
     }
     int deltaTop = Render.HeaderHeight + Render.Size + 136;
-    Check(RankPixel(30, deltaTop + 70) == (80,220,120)
-        && RankPixel(100, deltaTop + 70) == (55,55,55),
+    Check(RankPixel(30, deltaTop + 40) == (18,60,30)
+        && RankPixel(100, deltaTop + 40) == (0,0,0),
         "delta mute shading follows rank despite an extreme outlier");
     Check(RankPixel(Render.Size - 17, deltaTop) == (255,255,255), "delta curve reaches maximum in white");
     settings["removeRankBandMiddle"] = null;
@@ -186,8 +191,8 @@ try
         return (deltaBitmap[p + 2], deltaBitmap[p + 1], deltaBitmap[p]);
     }
     Check(DeltaPixel(Render.Size - 17, deltaTop) == (255,255,255), "white delta curve includes all selected finite changes");
-    Check(DeltaPixel(16 + (Render.Size - 32)/2, deltaTop + 70) == (80,220,120), "lowest half of delta ranks has its cutoff at half the legend width");
-    Check(DeltaPixel(800, deltaTop + 70) == (55,55,55), "delta rank strip uses neutral gray for unmuted ranks");
+    Check(DeltaPixel(16 + (Render.Size - 32)/2, deltaTop + 40) == (80,220,120), "lowest half of delta ranks has its cutoff at half the legend width");
+    Check(DeltaPixel(800, deltaTop + 70) == (0,0,0), "delta curve has no bar beneath it");
     settings["removeRankBandHigh"] = 0.5;
     Run();
     Check(Pixel(Output("standard", 2), 1) == (0, 204, 255), "value removal does not change delta ranks or colour scaling");

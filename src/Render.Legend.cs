@@ -98,6 +98,23 @@ public static partial class Render
                 LegendPixel(image, arrowTip - step, arrowY - step + dy, 255, 255, 255);
                 LegendPixel(image, arrowTip - step, arrowY + step + dy, 255, 255, 255);
             }
+        int footerTop = HeaderHeight + Size;
+        for (int section = 0; section < 3; section++)
+            WhiteBorder(image, 8, footerTop + section * 128, Size - 16, 127);
+    }
+
+    static void WhiteBorder(byte[] image, int left, int top, int width, int height)
+    {
+        for (int x = left; x < left + width; x++)
+        {
+            LegendPixel(image, x, top, 255, 255, 255);
+            LegendPixel(image, x, top + height - 1, 255, 255, 255);
+        }
+        for (int y = top; y < top + height; y++)
+        {
+            LegendPixel(image, left, y, 255, 255, 255);
+            LegendPixel(image, left + width - 1, y, 255, 255, 255);
+        }
     }
 
     static void DrawDistribution(byte[] image, string color, double min, double max, double[] values, bool[] selected,
@@ -131,16 +148,21 @@ public static partial class Render
             for (int y = x == 0 ? curveY : Math.Min(previousY, curveY); y <= Math.Max(x == 0 ? curveY : previousY, curveY); y++)
                 LegendPixel(image, LegendLeft + x, y, 255, 255, 255);
             previousY = curveY;
-            var rgb = rankOrdered ? ((byte)55, (byte)55, (byte)55) : Color(color, x / (double)(LegendWidth - 1));
-            if (muted) rgb = MuteGreen;
-            for (int y = top + 69; y < top + 75; y++) LegendPixel(image, LegendLeft + x, y, rgb.Item1, rgb.Item2, rgb.Item3);
+            if (!rankOrdered)
+            {
+                var rgb = muted ? MuteGreen : Color(color, x / (double)(LegendWidth - 1));
+                for (int y = top + 69; y < top + 75; y++) LegendPixel(image, LegendLeft + x, y, rgb.Item1, rgb.Item2, rgb.Item3);
+            }
         }
         foreach (int edge in intervals.SelectMany(b => new[] { b.Left, b.Right }))
-            for (int y = top; y < top + 75; y++) LegendPixel(image, LegendLeft + edge, y, MuteGreen.R, MuteGreen.G, MuteGreen.B);
+            for (int y = top; y < top + (rankOrdered ? HistogramHeight + 1 : 75); y++) LegendPixel(image, LegendLeft + edge, y, MuteGreen.R, MuteGreen.G, MuteGreen.B);
         string low = rankOrdered ? "0.00" : min.ToString("G6", CultureInfo.InvariantCulture);
         string high = rankOrdered ? "1.00" : max.ToString("G6", CultureInfo.InvariantCulture);
         if (!rankOrdered)
+        {
+            WhiteBorder(image, LegendLeft - 1, top + 68, LegendWidth + 2, 8);
             CenterText(image, $"{settings.color}  {settings.pointSize} PX @ {settings.alpha.ToString("G4", CultureInfo.InvariantCulture)} ALPHA", top + 82, 2);
+        }
         LegendText(image, low, LegendLeft, top + 104, 2);
         LegendText(image, high, Size - LegendLeft - TextWidth(high, 2), top + 104, 2);
         CenterText(image, rankOrdered ? "DELTA RANK" : "PA", top + 104, 2);

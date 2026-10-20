@@ -253,7 +253,8 @@ A right-aligned count column shows total points beside the title, filtered point
 beside the filter, points remaining after rank muting beside RANK MUTE, and
 final visible points after both mute stages beside DELTA MUTE. OFF labels are red
 and enabled fractions green. Palette, point diameter and alpha sit below the pressure
-color bar, above PA. Pressure, delta rank and time occupy equal-height footer sections.
+color bar, above PA. Pressure, delta rank and time occupy equal-height footer sections with white outlines.
+The color bar has its own white outline; delta rank has a curve with no bar beneath it.
 Current time aligns left, a right-facing arrow is centered, and the latest saved time aligns right.
 The footer contains the pressure histogram/palette, white DELTA RANK curve
 (0.00–1.00), and frame progress with current time → latest saved time. Timestamp triplets use gold (seconds), cyan (milliseconds),
