@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Text.Json;
 
-// ocarina render DIR SETTINGS_FILE: splats selected points onto a 2048x2048 bitmap.
-public static class Render
+// ocarina render DIR SETTINGS_FILE: splats selected points onto 1024x1024 plots with headers and legends.
+public static partial class Render
 {
-    public const int Size = 2048;
+    public const int Size = 1024;
 
     static readonly (double T, double R, double G, double B)[] Inferno =
     {
@@ -29,6 +29,11 @@ public static class Render
     {
         (0.0, 255, 0, 0), (1.0 / 6, 255, 255, 0), (2.0 / 6, 0, 255, 0),
         (0.5, 0, 255, 255), (4.0 / 6, 0, 0, 255), (5.0 / 6, 255, 0, 255), (1.0, 255, 0, 0)
+    };
+
+    static readonly (double T, double R, double G, double B)[] Monochrome =
+    {
+        (0.0, 0, 0, 0), (1.0, 255, 255, 255)
     };
 
     readonly record struct Condition(int Axis, string Operator, double Value)
@@ -59,9 +64,21 @@ public static class Render
             "gameboy" => GameBoy,
             "vanimo" => Vanimo,
             "hsv" => Hsv,
-            _ => throw new ArgumentException($"Unknown color '{name}'. Supported: inferno, gameboy, vanimo, hsv.")
+            "monochrome" or "monochrome-contrast" or "monochrome-polarize" => Monochrome,
+            _ => throw new ArgumentException($"Unknown color '{name}'. Supported: inferno, gameboy, vanimo, hsv, monochrome, monochrome-contrast, monochrome-polarize.")
         };
         t = Math.Clamp(t, 0, 1);
+        if (name is "monochrome-contrast" or "monochrome-polarize")
+        {
+            // A symmetric S-curve deepens shadows and lifts highlights without clipping values.
+            double dark = t * t, light = (1 - t) * (1 - t);
+            if (name == "monochrome-polarize")
+            {
+                // Power 16 makes the transition around mid-gray much steeper than power 2.
+                for (int power = 0; power < 3; power++) { dark *= dark; light *= light; }
+            }
+            t = dark / (dark + light);
+        }
         for (int i = 1; i < palette.Length; i++)
         {
             if (t > palette[i].T) continue;
@@ -81,14 +98,18 @@ public static class Render
         public required int pointSize { get; init; }
         public required double alpha { get; init; }
         public required string dataMode { get; init; }
-        public bool fadeUnchanged { get; init; } = true;
-        public double unchangedAlpha { get; init; } = 0;
+        public double? removeRankBandMiddle { get; init; } = 0.05;
+        public double? removeRankBandLow { get; init; }
+        public double? removeRankBandHigh { get; init; }
+        public double? removeDeltaRankBandMiddle { get; init; }
+        public double? removeDeltaRankBandLow { get; init; }
+        public double? removeDeltaRankBandHigh { get; init; }
         public Dictionary<string, Dictionary<string, double>> filter { get; init; } = new();
     }
 
-    static Settings LoadSettings(string path)
+    static Settings LoadSettings(JsonElement element)
     {
-        Settings settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(path), Configuration.Json)
+        Settings settings = element.Deserialize<Settings>(Configuration.Json)
             ?? throw new ArgumentException("Render settings must be a JSON object.");
         if (settings.field != "pressure") throw new ArgumentException("Only the pressure field is supported for now.");
         if (string.IsNullOrWhiteSpace(settings.frames)) throw new ArgumentException("frames must be *, -t, a frame index, or a timestamp.");
@@ -97,8 +118,13 @@ public static class Render
         if (settings.pointSize < 1) throw new ArgumentException("pointSize must be a positive whole-pixel diameter.");
         if (!double.IsFinite(settings.alpha) || settings.alpha < 0 || settings.alpha > 1)
             throw new ArgumentException("alpha must be between 0 and 1.");
-        if (!double.IsFinite(settings.unchangedAlpha) || settings.unchangedAlpha < 0 || settings.unchangedAlpha > 1)
-            throw new ArgumentException("unchangedAlpha must be between 0 and 1 (a fraction of alpha).");
+        foreach (var (name, value) in new[] { (nameof(settings.removeRankBandMiddle), settings.removeRankBandMiddle),
+            (nameof(settings.removeRankBandLow), settings.removeRankBandLow), (nameof(settings.removeRankBandHigh), settings.removeRankBandHigh),
+            (nameof(settings.removeDeltaRankBandMiddle), settings.removeDeltaRankBandMiddle),
+            (nameof(settings.removeDeltaRankBandLow), settings.removeDeltaRankBandLow),
+            (nameof(settings.removeDeltaRankBandHigh), settings.removeDeltaRankBandHigh) })
+            if (value is double band && (!double.IsFinite(band) || band < 0 || band > 1))
+                throw new ArgumentException($"{name} must be null or between 0 and 1.");
         DifferenceOrder(settings.dataMode);
         ParseFilter(settings.filter);
         return settings;
@@ -136,17 +162,17 @@ public static class Render
         return conditions.ToArray();
     }
 
-    // Read history in saved-frame order with bounded memory, including activity for opacity.
-    static IEnumerable<(int Index, double[] Values, double[] Activity)> DataFrames(string directory, string[] frames, int stride, int count, int offset, int differenceOrder,
+    // Read one extra saved frame for delta ranking, with bounded memory.
+    static IEnumerable<(int Index, double[] Values, double[] Delta)> DataFrames(string directory, string[] frames, int stride, int count, int offset, int differenceOrder,
         int first = 0, int last = int.MaxValue)
     {
-        double[] previous = null, previousPrevious = null;
-        for (int index = Math.Max(0, first - Math.Max(1, differenceOrder)); index < frames.Length && index <= last; index++)
+        double[] previous = null, previousPrevious = null, previousValues = null;
+        for (int index = Math.Max(0, first - differenceOrder - 1); index < frames.Length && index <= last; index++)
         {
             float[] raw = ReadFrame(directory, frames[index], stride, count);
             var current = new double[count];
             for (int i = 0; i < count; i++) current[i] = raw[i * stride + offset];
-            if (index >= first && (differenceOrder == 0 || previous != null) && (differenceOrder < 2 || previousPrevious != null))
+            if ((differenceOrder == 0 || previous != null) && (differenceOrder < 2 || previousPrevious != null))
             {
                 var values = new double[count];
                 for (int i = 0; i < count; i++)
@@ -156,18 +182,47 @@ public static class Render
                         1 => current[i] - previous[i],
                         _ => (current[i] - previous[i]) - (previous[i] - previousPrevious[i])
                     };
-                double[] activity = values;
-                if (differenceOrder == 0)
-                {
-                    activity = previous == null ? null : new double[count];
-                    if (activity != null)
-                        for (int i = 0; i < count; i++) activity[i] = current[i] - previous[i];
-                }
-                yield return (index, values, activity);
+                double[] delta = previousValues == null ? null : new double[count];
+                if (delta != null)
+                    for (int i = 0; i < count; i++) delta[i] = values[i] - previousValues[i];
+                previousValues = values;
+                if (index >= first) yield return (index, values, delta);
             }
             previousPrevious = previous;
             previous = current;
         }
+    }
+
+    // Select exact counts by sorted rank. Point index breaks ties deterministically.
+    static (bool[] Hidden, (double Low, double High)[] Bands, (double Low, double High)[] Ranks, int Count)
+        RankBands(double[] values, bool[] selected, double? middle, double? lowFraction, double? highFraction)
+    {
+        int[] sorted = Enumerable.Range(0, values.Length)
+            .Where(i => selected[i] && double.IsFinite(values[i]))
+            .OrderBy(i => values[i]).ThenBy(i => i).ToArray();
+        var hidden = new bool[values.Length];
+        int n = sorted.Length;
+        int Count(double? fraction) => (int)Math.Round(n * (fraction ?? 0), MidpointRounding.AwayFromZero);
+        void Hide(int start, int count)
+        {
+            for (int rank = start; rank < start + count; rank++) hidden[sorted[rank]] = true;
+        }
+        int middleCount = Count(middle);
+        Hide((n - middleCount) / 2, middleCount);
+        Hide(0, Count(lowFraction));
+        int highCount = Count(highFraction);
+        Hide(n - highCount, highCount);
+        var bands = new List<(double Low, double High)>();
+        var ranks = new List<(double Low, double High)>();
+        for (int rank = 0; rank < n; rank++)
+        {
+            if (!hidden[sorted[rank]]) continue;
+            int first = rank;
+            while (rank + 1 < n && hidden[sorted[rank + 1]]) rank++;
+            bands.Add((values[sorted[first]], values[sorted[rank]]));
+            ranks.Add((first / (double)n, (rank + 1) / (double)n));
+        }
+        return (hidden, bands.ToArray(), ranks.ToArray(), n);
     }
 
     static string[] Frames(string directory) => Directory.EnumerateFiles(directory, "*s*ms*us*ns.bin.br").Select(f => Path.GetFileName(f)[..^".bin.br".Length]).OrderBy(n => n, StringComparer.Ordinal).ToArray();
@@ -224,10 +279,48 @@ public static class Render
             Console.WriteLine($"Cleaned renders: {directory}");
             return 0;
         }
-        Settings settings = LoadSettings(args[2]);
-        string root = Paths.Canonical(args[1]), field = settings.field, pointsDirectory = Points.PointsDirectory(root);
+        using var document = JsonDocument.Parse(File.ReadAllText(args[2]));
+        var element = document.RootElement;
+        Settings[] panels = element.ValueKind == JsonValueKind.Array
+            ? element.EnumerateArray().Select(LoadSettings).ToArray()
+            : new[] { LoadSettings(element) };
+        if (panels.Length == 0) throw new ArgumentException("Render settings array cannot be empty.");
+        if (panels.Any(p => p.frames != panels[0].frames || p.dataMode != panels[0].dataMode))
+            throw new ArgumentException("Side-by-side panels must use the same frames and dataMode.");
+        string root = Paths.Canonical(args[1]);
+        string[] snapshot = Frames(Points.PointsDirectory(root));
+        var streams = panels.Select(p => RenderFrames(root, p, snapshot).GetEnumerator()).ToArray();
+        try
+        {
+            while (true)
+            {
+                bool[] ready = streams.Select(s => s.MoveNext()).ToArray();
+                if (ready.All(r => !r)) break;
+                if (ready.Any(r => !r) || streams.Any(s => s.Current.Frame != streams[0].Current.Frame))
+                    throw new InvalidDataException("Panel frames do not match.");
+                int width = checked(Size * panels.Length);
+                int height = streams.Max(s => s.Current.Image.Length / (Size * 3));
+                byte[] combined = new byte[checked(width * height * 3)];
+                for (int panel = 0; panel < streams.Length; panel++)
+                {
+                    byte[] image = streams[panel].Current.Image;
+                    for (int y = 0; y < image.Length / (Size * 3); y++)
+                        Buffer.BlockCopy(image, y * Size * 3, combined, (y * width + panel * Size) * 3, Size * 3);
+                }
+                string output = Path.Combine(root, "renders", panels[0].dataMode, $"pressure_{streams[0].Current.Frame}.png");
+                Directory.CreateDirectory(Path.GetDirectoryName(output));
+                WritePng(output, combined, width);
+                Console.WriteLine($"{output} ({panels.Length} panel(s), {width}x{height})");
+            }
+        }
+        finally { foreach (var stream in streams) stream.Dispose(); }
+        return 0;
+    }
+
+    static IEnumerable<(string Frame, byte[] Image)> RenderFrames(string root, Settings settings, string[] availableFrames)
+    {
+        string field = settings.field, pointsDirectory = Points.PointsDirectory(root);
         int differenceOrder = DifferenceOrder(settings.dataMode);
-        string[] availableFrames = Frames(pointsDirectory);
         if (availableFrames.Length <= differenceOrder)
             throw new ArgumentException($"{settings.dataMode} requires at least {differenceOrder + 1} saved frames; found {availableFrames.Length}.");
         int[] frameIndices = settings.frames == "*"
@@ -310,27 +403,31 @@ public static class Render
         }
         Array.Sort(depth, order);
 
-        foreach (var (frameIndex, values, activity) in DataFrames(pointsDirectory, availableFrames, stride, count, offset, differenceOrder, frameIndices[0], frameIndices[^1]))
+        foreach (var (frameIndex, values, delta) in DataFrames(pointsDirectory, availableFrames, stride, count, offset, differenceOrder, frameIndices[0], frameIndices[^1]))
         {
             string frame = availableFrames[frameIndex];
-            // Normalize opacity independently for each frame, using only visible, finite points.
-            double activityMagnitude = 0;
-            if (settings.fadeUnchanged && activity != null)
-                for (int i = 0; i < count; i++)
-                    if (selected[i] && double.IsFinite(values[i]) && double.IsFinite(activity[i]))
-                        activityMagnitude = Math.Max(activityMagnitude, Math.Abs(activity[i]));
-            byte[] image = new byte[Size * Size * 3];
+            double[] activity = delta?.Select(Math.Abs).ToArray();
+            bool deltaRemoval = settings.removeDeltaRankBandLow > 0 || settings.removeDeltaRankBandMiddle > 0 || settings.removeDeltaRankBandHigh > 0;
+            var deltaBands = activity == null ? (Hidden: new bool[count], Bands: Array.Empty<(double Low, double High)>(), Ranks: Array.Empty<(double Low, double High)>(), Count: 0)
+                : RankBands(activity, selected, settings.removeDeltaRankBandMiddle, settings.removeDeltaRankBandLow, settings.removeDeltaRankBandHigh);
+            var bands = RankBands(values, selected, settings.removeRankBandMiddle, settings.removeRankBandLow, settings.removeRankBandHigh);
+            double PointAlpha(int i)
+            {
+                if (!selected[i] || !double.IsFinite(values[i])) return 0;
+                if (bands.Hidden[i]) return 0;
+                if (activity != null && deltaRemoval &&
+                    (!double.IsFinite(activity[i]) || deltaBands.Hidden[i])) return 0;
+                return presentation.Alpha;
+            }
+            int shown = Enumerable.Range(0, count).Count(i => PointAlpha(i) > 0);
+            string[] metadata = Metadata(root, frame, settings, conditions, shown, selectedCount, count);
+            int imageHeight = ImageHeight;
+            byte[] image = new byte[Size * imageHeight * 3];
             foreach (int i in order)
             {
                 double v = values[i];
                 if (!selected[i] || !double.IsFinite(v)) continue;
-                double alpha = presentation.Alpha;
-                if (settings.fadeUnchanged && activity != null)
-                {
-                    if (!double.IsFinite(activity[i])) continue;
-                    double strength = activityMagnitude > 0 ? Math.Abs(activity[i]) / activityMagnitude : 0;
-                    alpha *= settings.unchangedAlpha + (1 - settings.unchangedAlpha) * strength;
-                }
+                double alpha = PointAlpha(i);
                 if (alpha == 0) continue;
                 var (r, g, b) = Color(color, (v - min) / range);
                 double radius = presentation.Diameter / 2.0, radiusSquared = radius * radius;
@@ -342,29 +439,17 @@ public static class Render
                     if (presentation.Diameter == 1 && (x != (int)Math.Floor(px[i]) || y != (int)Math.Floor(py[i]))) continue;
                     double dx = x + .5 - px[i], dy = y + .5 - py[i];
                     if (presentation.Diameter != 1 && dx * dx + dy * dy > radiusSquared) continue;
-                    int p = (y * Size + x) * 3;
+                    int p = ((y + HeaderHeight) * Size + x) * 3;
                     image[p] = (byte)Math.Round(b * alpha + image[p] * (1 - alpha));
                     image[p + 1] = (byte)Math.Round(g * alpha + image[p + 1] * (1 - alpha));
                     image[p + 2] = (byte)Math.Round(r * alpha + image[p + 2] * (1 - alpha));
                 }
             }
 
-            string output = Path.Combine(root, "renders", settings.dataMode, $"{field}_{frame}.bmp");
-            Directory.CreateDirectory(Path.GetDirectoryName(output));
-            WriteBitmap(output, image);
-            Console.WriteLine($"{output}  ({field} {settings.dataMode} {min:G6}..{max:G6}, {selectedCount}/{count} points; {presentation.Diameter}px alpha {presentation.Alpha:G3})");
+            DrawLegend(image, color, min, max, values, selected, metadata, bands, activity, deltaBands,
+                settings, frame, availableFrames[^1], (frameIndex - frameIndices[0] + 1.0) / frameIndices.Length);
+            yield return (frame, image);
         }
-        return 0;
     }
 
-    static void WriteBitmap(string path, byte[] bgr)
-    {
-        using var file = new BinaryWriter(new FileStream(path, FileMode.Create, FileAccess.Write));
-        file.Write((byte)'B'); file.Write((byte)'M');
-        file.Write(54 + bgr.Length); file.Write(0); file.Write(54);
-        file.Write(40); file.Write(Size); file.Write(Size); file.Write((short)1); file.Write((short)24);
-        file.Write(0); file.Write(bgr.Length); file.Write(2835); file.Write(2835); file.Write(0); file.Write(0);
-        int row = Size * 3;
-        for (int y = Size - 1; y >= 0; y--) file.Write(bgr, y * row, row);
-    }
 }

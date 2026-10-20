@@ -1,17 +1,66 @@
-{
-  "field": "pressure",
-  "frames": "*",
-  "view": "fromRight",
-  "color": "hsv",
-  "pointSize": 17,
-  "alpha": 1.0,
-  "dataMode": "standard",
-  "fadeUnchanged": true,
-  "unchangedAlpha": 0.15,
-  "filter": {
-    "x": {
-      "greaterThanEqual": -1,
-      "lessThanEqual": 1
-    }
+[
+  {
+    "field": "pressure",
+    "frames": "*",
+    "view": "fromRight",
+    "color": "monochrome",
+    "pointSize": 20,
+    "alpha": 0.5,
+    "dataMode": "standard",
+    "removeRankBandMiddle": null,
+    "removeRankBandLow": null,
+    "removeRankBandHigh": null,
+    "removeDeltaRankBandLow": null,
+    "removeDeltaRankBandMiddle": null,
+    "removeDeltaRankBandHigh": null,
+    "filter": {}
+  },
+  {
+    "field": "pressure",
+    "frames": "*",
+    "view": "fromRight",
+    "color": "monochrome-contrast",
+    "pointSize": 20,
+    "alpha": 0.5,
+    "dataMode": "standard",
+    "removeRankBandMiddle": null,
+    "removeRankBandLow": null,
+    "removeRankBandHigh": null,
+    "removeDeltaRankBandLow": null,
+    "removeDeltaRankBandMiddle": null,
+    "removeDeltaRankBandHigh": null,
+    "filter": {}
+  },
+  {
+    "field": "pressure",
+    "frames": "*",
+    "view": "fromRight",
+    "color": "monochrome-polarize",
+    "pointSize": 20,
+    "alpha": 0.5,
+    "dataMode": "standard",
+    "removeRankBandMiddle": null,
+    "removeRankBandLow": null,
+    "removeRankBandHigh": null,
+    "removeDeltaRankBandLow": null,
+    "removeDeltaRankBandMiddle": null,
+    "removeDeltaRankBandHigh": null,
+    "filter": {}
+  },
+  {
+    "field": "pressure",
+    "frames": "*",
+    "view": "fromRight",
+    "color": "hsv",
+    "pointSize": 20,
+    "alpha": 0.5,
+    "dataMode": "standard",
+    "removeRankBandMiddle": null,
+    "removeRankBandLow": null,
+    "removeRankBandHigh": null,
+    "removeDeltaRankBandLow": null,
+    "removeDeltaRankBandMiddle": null,
+    "removeDeltaRankBandHigh": null,
+    "filter": {}
   }
-}
+]

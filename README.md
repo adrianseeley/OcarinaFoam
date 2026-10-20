@@ -144,7 +144,7 @@ the template guide.
 `ocarina render clean DIR` deletes only `DIR/renders`, including every data-mode subfolder.
 It succeeds when the folder is already absent and leaves simulation data, settings, and videos elsewhere untouched.
 
-`ocarina render DIR renderSettings.json` renders a 2048×2048 point-cloud bitmap for each
+`ocarina render DIR renderSettings.json` renders a 1024×1024 point-cloud area with a header and compact legends for each
 selected frame. The settings file path is relative to the current working directory,
 independently of the case directory. The root `renderSettings.json` is ready to use:
 
@@ -157,8 +157,12 @@ independently of the case directory. The root `renderSettings.json` is ready to 
   "pointSize": 17,
   "alpha": 1.0,
   "dataMode": "standard",
-  "fadeUnchanged": true,
-  "unchangedAlpha": 0.15,
+  "removeRankBandMiddle": 0.05,
+  "removeRankBandLow": null,
+  "removeRankBandHigh": null,
+  "removeDeltaRankBandLow": null,
+  "removeDeltaRankBandMiddle": null,
+  "removeDeltaRankBandHigh": null,
   "filter": {
     "x": { "greaterThanEqual": -1, "lessThanEqual": 1 }
   }
@@ -166,8 +170,13 @@ independently of the case directory. The root `renderSettings.json` is ready to 
 ```
 
 `field`, `frames`, `view`, `color`, `pointSize`, `alpha`, and `dataMode` are required.
+Settings may also be a nonempty array of these objects. Array entries render left to right
+in one image, each with its own legend and metadata. All entries must share
+`frames` and `dataMode`; view, palette, filtering, opacity and removal controls
+can differ. Each panel is 1024 pixels wide.
+
 Unknown settings and comparison names are rejected. `filter` defaults to `{}` (all points),
-`fadeUnchanged` defaults to `true`, and `unchangedAlpha` defaults to `0`.
+`removeRankBandMiddle` defaults to `0.05`; all other rank-removal controls default to `null`.
 
 - `frames`: `"*"` for every eligible saved frame, `"-t"` or `"-1"` for the latest,
   a string containing a zero-based frame index (negative indices count from the end),
@@ -177,8 +186,13 @@ Unknown settings and comparison names are rejected. `filter` defaults to `{}` (a
 - `color`: `inferno` (dark purple through orange to pale yellow), `gameboy` (olive greens),
   `vanimo` (diverging pink/purple through dark to green), or `hsv` (the full hue rainbow).
   HSV has red at both ends, so opposite extremes share a colour.
+  `monochrome` runs from black through gray to white.
+  `monochrome-contrast` applies a symmetric S-curve for darker shadows and brighter
+  highlights, preserving the midpoint and endpoints without clipping the range.
+  `monochrome-polarize` uses a much steeper S-curve for nearly black/white output,
+  with a narrow transition around mid-gray.
 - `pointSize` is the positive integer diameter of each circular point in pixels;
-  `alpha` is its maximum opacity from 0 to 1. Points are composited back to front.
+  `alpha` is the shared opacity from 0 to 1. Points are composited back to front.
 - `filter` contains any of `x`, `y`, and `z`, in **millimetres**. Each axis accepts
   `greaterThan`, `greaterThanEqual`, `lessThan`, `lessThanEqual`, `equal`, and `notEqual`.
   All comparisons must match. For example, `"x": {"greaterThan": 6, "lessThanEqual": 10}`
@@ -204,20 +218,65 @@ use a symmetric range around zero, so zero stays at the palette midpoint. This s
 shared by all rendered frames, including when selecting just one. It is per case and can
 grow as new frames arrive.
 
-`fadeUnchanged` works in **all three modes** without changing the colour values. In standard
-mode it measures `abs(p[n] - p[n-1])`; in difference modes it measures the absolute value
-of the displayed difference. Activity is normalized independently in each rendered frame by the maximum absolute
-activity among its selected, finite points. A larger change in another frame does not
-affect this frame's opacity; zero activity maps to the floor and this frame's largest
-activity maps to full configured alpha. Colour scaling still uses all saved frames. Opacity is
-`alpha * (unchangedAlpha + (1 - unchangedAlpha) * normalizedActivity)`.
-Thus `unchangedAlpha: 0` hides zero activity, while `0.15` keeps it faintly visible at 15%
-of the configured alpha. The first standard frame has no preceding history and uses the
-configured alpha. Setting `fadeUnchanged: false` gives every finite selected point the
-configured alpha, including points with zero change.
+Rank removal controls accept fractions from `0` to `1`, or `null` to disable:
 
-Output is `DIR/renders/DATA_MODE/pressure_TIMESTAMP.bmp`, keeping standard and difference
-images separate. The render and video commands in `copy` currently use `standard`; if you
+- `removeRankBandMiddle: 0.05` hides the middle 5% (47.5th through 52.5th percentile).
+- `removeRankBandLow: 0.05` hides the lowest 5%.
+- `removeRankBandHigh: 0.05` hides the highest 5%.
+
+Any point in any enabled band is hidden. `0` also disables a band; `1` hides all points.
+Each band is calculated per frame by sorting selected finite points in all three data
+modes and selecting a fraction of the point count, rounded to the nearest whole point
+(half rounds up). Low takes the first N points, high takes the last N, and middle takes
+N consecutive points centered in the sorted list (an odd spare point goes to the high tail).
+Equal values are ordered by original point index so ties cannot increase the number hidden.
+Long-tail magnitudes do not determine how many points are removed. Visible points share `alpha`.
+`removeDeltaRankBandLow`, `removeDeltaRankBandMiddle`, and `removeDeltaRankBandHigh`
+apply the same rank rules to the **absolute change of the displayed value** since the
+preceding saved frame. For standard mode this is `abs(p[n] - p[n-1])`; for difference
+modes it is the change between consecutive displayed differences. Low removes the
+least-changing points and high removes the most-changing points. The earliest eligible
+frame has no delta history and is unaffected by delta removal; a single-frame selection
+still reads its preceding history. Nonfinite deltas are not ranked or drawn when delta
+removal is enabled and history exists.
+
+All six removal controls affect drawing only. Hidden points still contribute to both
+histograms, colour limits, and both sets of rank cutoffs. Value and delta ranks are
+calculated independently before any removal. Spatial `filter` exclusions are omitted
+from these calculations entirely.
+
+The old `centerBandPercent` setting has been replaced by these fraction controls.
+
+Each lossless PNG panel is 1024×1360: a 72-pixel header, 1024×1024 plot, and 264-pixel footer.
+The centered header shows case, field, mode, view, filter, total/after-filter/after-mute
+counts, palette, point size and alpha. Mute settings use red OFF labels and green enabled
+fractions. The footer contains the pressure histogram/palette, white DELTA RANK curve
+(0.00–1.00), and frame progress with current time OF the latest saved time. Green
+legend intervals and MUTE ACTIVE identify muted values/ranks. All panels share a saved-frame
+snapshot taken when rendering starts, so running simulations do not change the time endpoint.
+Its colour bar uses the same fixed range as the points, with low/high labels in Pa
+(including signed differences). The white curve above the bar is a 128-bin histogram
+of this frame's selected finite values, with its peak normalized to 1. Counts include
+hidden points and are not weighted by opacity. The histogram uses the colour bar's range,
+so its horizontal position corresponds directly to a colour. Green shading and
+boundary lines identify muted numeric intervals. The pressure histogram remains a value
+axis: muting the bottom 5% by rank can occupy less than 5% of its width.
+At tied cutoff values, only the selected ranks are hidden.
+
+The white delta curve plots absolute change ordered from smallest to largest, with
+rank from 0.00 to 1.00 horizontally and height normalized to maximum change. Green
+shading marks muted delta ranks. All selected finite values contribute to the legends,
+including muted points. With no preceding frame the delta panel says so.
+TOTAL is every recorded point, AFTER FILTER counts spatial matches, and AFTER MUTE
+counts finite, unmuted points with positive opacity.
+
+Output is `DIR/renders/DATA_MODE/pressure_TIMESTAMP.png`, keeping standard and difference
+images separate. Run `./rerender.sh` to clean and regenerate renders for all six
+`ocarinaZeroSlim` cases, then encode their pressure videos at 60 fps. It reads the video
+input mode from `renderSettings.json` and overwrites the matching pressure MP4 files.
+The script builds an isolated renderer in `temp/render-bin` and processes cases sequentially,
+retaining lossless PNG frames after video encoding.
+The render and video commands in `copy` currently use `standard`; if you
 change `dataMode`, update the video input folder to match.
 
 On solver restart the CLI verifies latest-time agreement and mandatory fields on
